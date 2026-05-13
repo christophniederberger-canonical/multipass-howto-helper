@@ -8,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 import 'agent/multipass_wrapper.dart';
 import 'agent/websocket_server.dart';
 import 'platform/autostart_linux.dart';
+import 'proxy/tutorial_proxy.dart';
 import 'ui/permission_dialog.dart';
 import 'ui/status_window.dart';
 import 'ui/tray_icon.dart';
@@ -17,6 +18,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 late final LighthouseTray _tray;
 late final WebSocketServer _server;
+late final TutorialProxy _proxy;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,6 +74,16 @@ Future<void> main() async {
     stderr.writeln('Failed to start WebSocket server: $error');
     if (kDebugMode) stderr.writeln(stackTrace);
     await _tray.setTrayState(TrayState.error);
+  }
+
+  // Start tutorial proxy on port 8080 (debug mode, ws:// already used by WSS)
+  _proxy = TutorialProxy(port: 8080);
+  try {
+    await _proxy.start();
+    if (kDebugMode) stdout.writeln('Tutorial proxy started at http://localhost:8080');
+  } on Object catch (error, stackTrace) {
+    stderr.writeln('Failed to start tutorial proxy: $error');
+    if (kDebugMode) stderr.writeln(stackTrace);
   }
 
   runApp(const LighthouseApp());
