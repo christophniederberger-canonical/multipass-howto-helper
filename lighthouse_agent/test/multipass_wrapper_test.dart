@@ -22,6 +22,9 @@ class _FakeProcess implements Process {
   final Future<int> exitCode;
 
   @override
+  bool kill([ProcessSignal signal = ProcessSignal.sigterm]) => true;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -130,16 +133,54 @@ void main() {
         );
       });
 
-      test('does not throw on unknown stderr', () async {
+      test('throws on unknown stderr', () async {
         Future<ProcessResult> fakeRun(String cmd, List<String> args) async {
           return ProcessResult(0, 1, '', 'some other error');
         }
 
         final wrapper = MultipassWrapper(processRun: fakeRun);
-        await expectLater(
+        expect(
           wrapper.delete(vmName: 'lighthouse-abc123'),
-          completes,
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('multipass delete failed'),
+            ),
+          ),
         );
+      });
+    });
+
+    group('isAvailable', () {
+      test('returns true when multipass is in PATH', () async {
+        Future<ProcessResult> fakeRun(String cmd, List<String> args) async {
+          return ProcessResult(0, 0, '', '');
+        }
+
+        final wrapper = MultipassWrapper(processRun: fakeRun);
+        final result = await wrapper.isAvailable();
+        expect(result, isTrue);
+      });
+
+      test('returns false when multipass is not in PATH', () async {
+        Future<ProcessResult> fakeRun(String cmd, List<String> args) async {
+          return ProcessResult(0, 1, '', '');
+        }
+
+        final wrapper = MultipassWrapper(processRun: fakeRun);
+        final result = await wrapper.isAvailable();
+        expect(result, isFalse);
+      });
+
+      test('returns false when process throws', () async {
+        Future<ProcessResult> fakeRun(String cmd, List<String> args) async {
+          throw const FileSystemException('not found');
+        }
+
+        final wrapper = MultipassWrapper(processRun: fakeRun);
+        final result = await wrapper.isAvailable();
+        expect(result, isFalse);
       });
     });
   });

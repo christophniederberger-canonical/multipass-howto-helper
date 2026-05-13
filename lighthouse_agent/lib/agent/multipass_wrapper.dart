@@ -33,9 +33,9 @@ class MultipassWrapper {
   final Future<Process> Function(String, List<String>) processStart;
 
   /// Detects whether `multipass` is available in PATH.
-  static Future<bool> isAvailable() async {
+  Future<bool> isAvailable() async {
     try {
-      final result = await Process.run('which', const <String>['multipass']);
+      final result = await processRun('which', const <String>['multipass']);
       return result.exitCode == 0;
     } on Object {
       return false;
@@ -77,13 +77,18 @@ class MultipassWrapper {
       <String>['exec', vmName, '--', 'bash', '-c', command],
     );
 
-    // Merge stdout and stderr into a single stream of CommandOutput events.
-    await for (final event in _mergeStreams(process.stdout, process.stderr)) {
-      yield event;
-    }
+    try {
+      // Merge stdout and stderr into a single stream of CommandOutput events.
+      await for (final event in _mergeStreams(process.stdout, process.stderr)) {
+        yield event;
+      }
 
-    final exitCode = await process.exitCode;
-    yield ExecResult(exitCode: exitCode);
+      final exitCode = await process.exitCode;
+      yield ExecResult(exitCode: exitCode);
+    } finally {
+      // Ensure the process is killed if the stream is cancelled or errors.
+      process.kill();
+    }
   }
 
   /// Merges [stdout] and [stderr] byte streams into [CommandOutput] events.
@@ -93,6 +98,8 @@ class MultipassWrapper {
   ) {
     final controller = StreamController<CommandOutput>();
     var pending = 2;
+    StreamSubscription<void>? stdoutSub;
+    StreamSubscription<void>? stderrSub;
 
     void onDone() {
       pending--;
@@ -101,22 +108,32 @@ class MultipassWrapper {
       }
     }
 
-    stdout
+    void onError(Object error, StackTrace stackTrace) {
+      // Cancel the other subscription and close with error.
+      stdoutSub?.cancel();
+      stderrSub?.cancel();
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+        controller.close();
+      }
+    }
+
+    stdoutSub = stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen(
           (line) => controller.add(CommandOutput(stream: 'stdout', data: line)),
           onDone: onDone,
-          onError: (Object error) => controller.addError(error),
+          onError: onError,
         );
 
-    stderr
+    stderrSub = stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen(
           (line) => controller.add(CommandOutput(stream: 'stderr', data: line)),
           onDone: onDone,
-          onError: (Object error) => controller.addError(error),
+          onError: onError,
         );
 
     return controller.stream;
@@ -126,6 +143,7 @@ class MultipassWrapper {
   ///
   /// Runs `multipass delete --purge <vmName>`.
   /// Does not throw if the VM is already gone.
+  /// Throws [Exception] for other failures (disk full, permission denied, etc.).
   Future<void> delete({required String vmName, bool purge = true}) async {
     final args = purge
         ? <String>['delete', '--purge', vmName]
@@ -139,13 +157,12 @@ class MultipassWrapper {
       if (stderrText.contains('does not exist') ||
           stderrText.contains('unknown') ||
           stderrText.contains('not found')) {
-        stdout.writeln('VM $vmName already deleted or does not exist; ignoring.');
         return;
       }
 
-      // For other errors, log a warning but do not throw.
-      stderr.writeln(
-        'Warning: multipass delete failed for $vmName: ${result.stderr}',
+      // For other errors, throw so the caller can handle them.
+      throw Exception(
+        'multipass delete failed for $vmName: ${(result.stderr as String).trim()}',
       );
     }
   }

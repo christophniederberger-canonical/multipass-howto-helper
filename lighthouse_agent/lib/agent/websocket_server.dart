@@ -381,7 +381,6 @@ class WebSocketServer {
           );
         }
       }
-      await wrapper.delete(vmName: vmName);
     } on Object catch (error, stackTrace) {
       stderr.writeln('Test multipass hook failed: $error');
       stderr.writeln(stackTrace);
@@ -394,6 +393,13 @@ class WebSocketServer {
           ),
         ),
       );
+    } finally {
+      // Always clean up the test VM, even on error.
+      try {
+        await wrapper.delete(vmName: vmName);
+      } on Object catch (error) {
+        stderr.writeln('Failed to clean up test VM $vmName: $error');
+      }
     }
   }
 }

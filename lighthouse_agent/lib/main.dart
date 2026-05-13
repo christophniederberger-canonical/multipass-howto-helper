@@ -44,7 +44,7 @@ Future<void> main() async {
   }
 
   // Check Multipass availability before starting the server.
-  final multipassAvailable = await MultipassWrapper.isAvailable();
+  final multipassAvailable = await const MultipassWrapper().isAvailable();
   if (!multipassAvailable) {
     stderr.writeln('Multipass not found in PATH. Please install Multipass.');
     await _tray.setTrayState(TrayState.error);
