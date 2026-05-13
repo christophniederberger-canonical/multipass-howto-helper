@@ -45,6 +45,8 @@ A cross-platform "Bridge Agent" that connects official Canonical web tutorials t
 | `lighthouse_agent/lib/agent/multipass_wrapper.dart` | Multipass CLI wrapper (launch, exec, delete) |
 | `lighthouse_agent/lib/platform/autostart_linux.dart` | XDG autostart registration |
 | `lighthouse_agent/lib/main.dart` | App entry point with startup sequence |
+| `test_client/` | Node.js WebSocket test client |
+| `test_client/test.js` | Basic connection + multipass integration tests |
 
 ## Quick Start (Host)
 
@@ -66,68 +68,36 @@ flutter build linux --debug
 
 ## Testing the WebSocket Server
 
-### Basic Connection Test
+### Recommended: Local Test Client (Node.js)
 
-Open any regular website (e.g., `about:blank`) in your browser, open DevTools → Console, and paste:
+The easiest way to test the agent is with the included Node.js test client in `test_client/`:
 
-```javascript
-const ws = new WebSocket('ws://127.0.0.1:50051');
-ws.onopen = () => {
-  ws.send(JSON.stringify({
-    type: 'session_start',
-    origin: 'http://localhost:8080',
-    tutorial_url: 'http://localhost:8080/test'
-  }));
-};
-ws.onmessage = (e) => console.log('Received:', JSON.parse(e.data));
-ws.onerror = (e) => console.error('Error:', e);
+```bash
+# Install dependencies (first time only)
+cd test_client
+npm install
+
+# Basic connection test
+node test.js
+
+# Full multipass integration test (requires multipass installed)
+node test.js --multipass
 ```
 
-Expected response:
+**Expected output for basic test:**
 ```
-Received: {type: 'agent_error', code: 'NOT_IMPLEMENTED', message: 'Day 2 WebSocket skeleton received the message'}
-```
-
-### Multipass Integration Test (Day 2)
-
-To verify the Multipass wrapper works end-to-end, send the special test command:
-
-```javascript
-const ws = new WebSocket('ws://127.0.0.1:50051');
-ws.onopen = () => {
-  ws.send(JSON.stringify({
-    type: 'exec',
-    session_id: 'test-session-123',
-    command: '__test_multipass__'
-  }));
-};
-ws.onmessage = (e) => console.log('Received:', JSON.parse(e.data));
+[12:54:39.030] PASS  Received session_ready (agent has full session management)
+[12:54:39.030] INFO  Session ID: 1158b6e7-4396-4445-8989-b5abe8f9ddd8
+[12:54:39.030] INFO  VM Name: lighthouse-1158b6e7
 ```
 
-This will:
-1. Launch a temporary VM (`lighthouse-test-<timestamp>`)
-2. Run `echo hello from multipass` inside it
-3. Stream the output back as `output` messages
-4. Send `exec_done` with the exit code
-5. Delete the VM
-
-**Requires Multipass to be installed and in PATH.**
-
-## Testing from a Multipass VM (Parallel Development)
-
-If you are editing code inside a Multipass VM while testing on the host:
-
-1. **Always `flutter clean` when switching** between VM and host before building
-2. The source files are shared, but build artifacts contain absolute paths
-3. Run the agent on the **host** for easiest browser testing (no port forwarding needed)
-
-## Known Limitations (Day 2)
-
-- System tray is a placeholder stub on Linux (real `tray_manager` plugin removed due to `libayatana-appindicator` linker incompatibility with the snap Flutter toolchain in the VM)
-- TLS certificates are not auto-generated yet (release build will log a TODO)
-- No session state machine, origin validation, or permission dialog yet (Day 3)
-- No browser-side JS tutorial controller yet (Day 4)
-- No local HTTP proxy for development yet (Day 5)
+**Expected output for multipass test:**
+```
+[12:54:53.626] OK  Session ready: 3114cf36-... (VM: lighthouse-3114cf36)
+[12:56:45.244] RECV  { type: "output", stream: "stderr", data: "..." }
+[12:56:45.246] RECV  { type: "exec_done", exit_code: 0 }
+[12:56:45.246] PASS  Multipass integration test passed (exit code 0)
+```
 
 ## Development Environment Notes
 
@@ -142,18 +112,33 @@ If you are editing code inside a Multipass VM while testing on the host:
 
 For the best development experience, work directly on your host machine:
 
-1. **Install Flutter** (not via snap): https://docs.flutter.dev/get-started/install/linux
+1. **Install Flutter** (NOT via snap — the snap has a known linker bug):
+   ```bash
+   mkdir -p ~/dev/flutter_sdk && cd ~/dev/flutter_sdk
+   curl -LO https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.41.9-stable.tar.xz
+   tar xf flutter_linux_3.41.9-stable.tar.xz
+   rm flutter_linux_3.41.9-stable.tar.xz
+   ```
+   Then add to your `~/.bashrc` or `~/.profile`:
+   ```bash
+   export PATH="$HOME/dev/flutter_sdk/flutter/bin:$HOME/dev/flutter_sdk/flutter/bin/cache/dart-sdk/bin:$PATH"
+   ```
+
 2. **Install Linux desktop dependencies**:
    ```bash
    sudo apt install libgtk-3-dev libblkid-dev liblzma-dev
    ```
+
 3. **Install Multipass**: https://multipass.run/install
+
 4. **Clone the repository** and navigate to the project:
    ```bash
    cd lighthouse_agent
    flutter pub get
    flutter run
    ```
+
+> **⚠️ Important:** The snap Flutter SDK (`sudo snap install flutter`) has a known bug where its bundled LLVM 10 is missing `ld`/`ld.lld` linkers, causing `dart_build` failures. The snap filesystem is read-only so symlinks can't be created. **Always use the archive-based Flutter installation** described above.
 
 ### Option 2: Multipass VM Development
 

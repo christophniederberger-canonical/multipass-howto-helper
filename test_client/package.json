@@ -1,0 +1,13 @@
+{
+  "name": "lighthouse-test-client",
+  "version": "1.0.0",
+  "description": "Local test client for Lighthouse Agent WebSocket server",
+  "main": "test.js",
+  "scripts": {
+    "test": "node test.js",
+    "test-multipass": "node test.js --multipass"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

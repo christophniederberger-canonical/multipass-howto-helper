@@ -73,9 +73,25 @@ Release mode expects TLS certificates at:
 
 These are **not** auto-generated yet (Day 1 TODO).
 
-## Testing from the Browser
+## Testing
 
-### Basic Connection Test
+### Recommended: Local Test Client (Node.js)
+
+The easiest way to test the agent is with the included Node.js test client in `../test_client/`:
+
+```bash
+# Install dependencies (first time only)
+cd ../test_client
+npm install
+
+# Basic connection test
+node test.js
+
+# Full multipass integration test (requires multipass installed)
+node test.js --multipass
+```
+
+### Alternative: Browser Console Test
 
 1. Open any regular web page (e.g., `about:blank`)
 2. Open DevTools → Console
@@ -96,8 +112,10 @@ ws.onerror = (e) => console.error('Error:', e);
 
 Expected output:
 ```
-Received: {type: 'agent_error', code: 'NOT_IMPLEMENTED', message: 'Day 2 WebSocket skeleton received the message'}
+Received: {type: 'session_ready', session_id: '...', vm_name: 'lighthouse-...'}
 ```
+
+> **Note:** If you get a connection error, make sure the agent is running (`flutter run`). Also, some snap/flatpak browsers have restricted localhost access — try Firefox (deb) or Chrome (.deb) if your browser is a snap.
 
 ### Multipass Integration Test (Day 2)
 
