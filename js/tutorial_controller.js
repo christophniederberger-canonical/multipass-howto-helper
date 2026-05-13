@@ -156,11 +156,7 @@ class TutorialController {
         }
         
         // Also append to console log
-        const consoleLog = document.getElementById('lh-console-log');
-        if (consoleLog) {
-          consoleLog.textContent += message.data;
-          consoleLog.scrollTop = consoleLog.scrollHeight;
-        }
+        this._appendToConsoleOutput(message.data);
         break;
 
       case 'exec_done':
@@ -220,9 +216,12 @@ class TutorialController {
         return;
       }
 
-      // Get the command text
-      const command = codeBlock.textContent.trim();
-      if (!command) {
+      // Parse command lines from this block.
+      const rawLines = codeBlock.textContent
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+      if (rawLines.length === 0) {
         return; // Skip empty blocks
       }
 
@@ -236,27 +235,45 @@ class TutorialController {
       preElement.parentNode.insertBefore(wrapper, preElement);
       wrapper.appendChild(preElement);
 
-      // Create run button
-      const runButton = document.createElement('button');
-      runButton.className = 'lh-run-btn';
-      runButton.textContent = '▶ Run';
-      runButton.disabled = !this.sessionId; // Disable if no session yet
-      
-      runButton.addEventListener('click', () => {
-        this._handleRunButtonClick(wrapper, command);
-      });
+      // Create run controls (one button per command line for multi-line blocks).
+      const runControls = document.createElement('div');
+      runControls.className = 'lh-run-controls';
+
+      if (rawLines.length === 1) {
+        const runButton = document.createElement('button');
+        runButton.className = 'lh-run-btn';
+        runButton.textContent = '▶ Run';
+        runButton.disabled = !this.sessionId;
+        runButton.title = rawLines[0];
+        runButton.addEventListener('click', () => {
+          this._handleRunButtonClick(wrapper, rawLines[0]);
+        });
+        runControls.appendChild(runButton);
+      } else {
+        rawLines.forEach((line, lineIndex) => {
+          const runButton = document.createElement('button');
+          runButton.className = 'lh-run-btn lh-run-btn-small';
+          runButton.textContent = `▶ L${lineIndex + 1}`;
+          runButton.disabled = !this.sessionId;
+          runButton.title = line;
+          runButton.addEventListener('click', () => {
+            this._handleRunButtonClick(wrapper, line);
+          });
+          runControls.appendChild(runButton);
+        });
+      }
 
       // Create output section (initially hidden)
       const outputSection = document.createElement('div');
       outputSection.className = 'lh-output-section lh-hidden';
-      outputSection.innerHTML = '<pre class="lh-output-pre"></pre>';
+      outputSection.innerHTML = '<div class="lh-output-command"></div><pre class="lh-output-pre"></pre>';
 
       // Create status indicator
       const statusIndicator = document.createElement('span');
       statusIndicator.className = 'lh-status-indicator';
 
       // Append elements to wrapper
-      wrapper.appendChild(runButton);
+      wrapper.appendChild(runControls);
       wrapper.appendChild(outputSection);
       wrapper.appendChild(statusIndicator);
     });
@@ -270,11 +287,21 @@ class TutorialController {
     // Set block state to running
     this._setBlockState(block, 'running');
     
-    // Clear previous output
-    const outputPre = block.querySelector('.lh-output-pre');
-    if (outputPre) {
-      outputPre.textContent = '';
+    const outputCommand = block.querySelector('.lh-output-command');
+    if (outputCommand) {
+      if (outputCommand.textContent && outputCommand.textContent.trim().length > 0) {
+        outputCommand.textContent += `\n$ ${command}`;
+      } else {
+        outputCommand.textContent = `$ ${command}`;
+      }
     }
+
+    const outputSection = block.querySelector('.lh-output-section');
+    if (outputSection) {
+      outputSection.classList.remove('lh-hidden');
+    }
+
+    this._appendToConsoleCommand(command);
 
     // Send exec command
     this._sendMessage({
@@ -302,50 +329,58 @@ class TutorialController {
     block.classList.add(`lh-state-${state}`);
 
     // Update button based on state
-    const runButton = block.querySelector('.lh-run-btn');
+    const runButtons = block.querySelectorAll('.lh-run-btn');
     const statusIndicator = block.querySelector('.lh-status-indicator');
 
     if (state === 'running') {
-      if (runButton) {
-        runButton.disabled = true;
-      }
+      runButtons.forEach(button => {
+        button.disabled = true;
+      });
       if (statusIndicator) {
         statusIndicator.textContent = '';
       }
     } else if (state === 'success') {
-      if (runButton) {
-        runButton.disabled = false;
-      }
+      runButtons.forEach(button => {
+        button.disabled = false;
+      });
       if (statusIndicator) {
         statusIndicator.textContent = '✓ Success';
       }
     } else if (state === 'failure') {
-      if (runButton) {
-        runButton.disabled = false;
-      }
+      runButtons.forEach(button => {
+        button.disabled = false;
+      });
       if (statusIndicator) {
         statusIndicator.textContent = '✗ Failed';
       }
     } else if (state === 'blocked') {
-      if (runButton) {
-        runButton.disabled = false;
-      }
+      runButtons.forEach(button => {
+        button.disabled = false;
+      });
       if (statusIndicator) {
         statusIndicator.textContent = '⚠ Blocked';
       }
     } else if (state === 'denied') {
-      if (runButton) {
-        // Replace button with denied label
-        runButton.remove();
-        const deniedLabel = document.createElement('span');
-        deniedLabel.className = 'lh-denied-label';
-        deniedLabel.textContent = '⚠ Permission denied';
-        block.appendChild(deniedLabel);
+      if (runButtons.length > 0) {
+        runButtons.forEach(button => {
+          button.remove();
+        });
+        const controls = block.querySelector('.lh-run-controls');
+        if (controls) {
+          controls.remove();
+        }
+        if (!block.querySelector('.lh-denied-label')) {
+          // Replace buttons with denied label
+          const deniedLabel = document.createElement('span');
+          deniedLabel.className = 'lh-denied-label';
+          deniedLabel.textContent = '⚠ Permission denied';
+          block.appendChild(deniedLabel);
+        }
       }
     } else if (state === 'idle') {
-      if (runButton) {
-        runButton.disabled = !this.sessionId;
-      }
+      runButtons.forEach(button => {
+        button.disabled = !this.sessionId;
+      });
       if (statusIndicator) {
         statusIndicator.textContent = '';
       }
@@ -380,6 +415,32 @@ class TutorialController {
         }
       }
     }
+  }
+
+  _appendToConsoleCommand(command) {
+    const consoleLog = document.getElementById('lh-console-log');
+    if (!consoleLog) {
+      return;
+    }
+
+    const commandLine = document.createElement('span');
+    commandLine.className = 'lh-console-command';
+    commandLine.textContent = `$ ${command}\n`;
+    consoleLog.appendChild(commandLine);
+    consoleLog.scrollTop = consoleLog.scrollHeight;
+  }
+
+  _appendToConsoleOutput(data) {
+    const consoleLog = document.getElementById('lh-console-log');
+    if (!consoleLog) {
+      return;
+    }
+
+    const outputLine = document.createElement('span');
+    outputLine.className = 'lh-console-output';
+    outputLine.textContent = data;
+    consoleLog.appendChild(outputLine);
+    consoleLog.scrollTop = consoleLog.scrollHeight;
   }
 
   _enableAllRunButtons() {

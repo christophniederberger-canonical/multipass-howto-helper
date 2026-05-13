@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 import 'package:shelf/shelf.dart';
@@ -23,14 +22,55 @@ class TutorialProxy {
   static const Duration _cacheDuration = Duration(minutes: 5);
 
   TutorialProxy({this.port = 8080})
-      : _workspaceRoot = path.normalize(
-          path.join(path.dirname(Platform.script.toFilePath()), '..', '..'),
-        );
+      : _workspaceRoot = _resolveWorkspaceRoot();
+
+  static String? _findWorkspaceRootFrom(String startDir) {
+    var current = path.normalize(startDir);
+    for (var i = 0; i < 10; i++) {
+      final controllerPath = path.join(current, 'js', 'tutorial_controller.js');
+      if (File(controllerPath).existsSync()) {
+        return current;
+      }
+
+      final parent = path.dirname(current);
+      if (parent == current) {
+        break;
+      }
+      current = parent;
+    }
+    return null;
+  }
+
+  static String _resolveWorkspaceRoot() {
+    final envRoot = Platform.environment['LIGHTHOUSE_WORKSPACE_ROOT'];
+    if (envRoot != null && envRoot.isNotEmpty) {
+      final normalized = path.normalize(envRoot);
+      if (File(path.join(normalized, 'js', 'tutorial_controller.js')).existsSync()) {
+        return normalized;
+      }
+    }
+
+    final startPoints = <String>[
+      Directory.current.path,
+      path.dirname(Platform.resolvedExecutable),
+      path.dirname(Platform.script.toFilePath()),
+    ];
+
+    for (final start in startPoints) {
+      final found = _findWorkspaceRootFrom(start);
+      if (found != null) {
+        return found;
+      }
+    }
+
+    return path.normalize(path.join(Directory.current.path, '..'));
+  }
 
   Future<void> start({int? port}) async {
     final p = port ?? this.port;
     _server = await shelf_io.serve(_handler, 'localhost', p);
     _log('Tutorial proxy running at http://localhost:$p');
+    _log('Using workspace root: $_workspaceRoot');
   }
 
   Future<void> stop() async {
@@ -108,14 +148,26 @@ class TutorialProxy {
       );
 
       if (response.statusCode != 200) {
+        final contentType = response.headers['content-type'] ?? 'text/plain; charset=utf-8';
         return Response(
           response.statusCode,
-          body: '<html><body><h1>Failed to fetch tutorial</h1><p>URL: $url<br>Status: ${response.statusCode}</p></body></html>',
-          headers: {'Content-Type': 'text/html'},
+          body: response.bodyBytes,
+          headers: {'Content-Type': contentType},
         );
       }
 
-      // Process and cache the response
+      final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+      final isHtml = contentType.contains('text/html');
+
+      if (!isHtml) {
+        return Response(
+          response.statusCode,
+          body: response.bodyBytes,
+          headers: {'Content-Type': response.headers['content-type'] ?? 'application/octet-stream'},
+        );
+      }
+
+      // Process and cache HTML tutorial pages only.
       String processedHtml = _processContent(response.body, url);
       _setCached(url, processedHtml);
       
@@ -147,73 +199,8 @@ class TutorialProxy {
   // -----------------------------------------------------------------------
 
   String _processContent(String html, String url) {
-    int filterCount = 0;
-    
-    // Remove external scripts (but allow inline)
-    if (html.contains('<script')) {
-      html = html.replaceAllMapped(
-        RegExp('<script[^>]+src=["' "'" '][^"' "'" ']+["' "'" '][^>]*>', caseSensitive: false),
-        (match) {
-          _log('Filtered script tag from $url: ${match.group(0)}');
-          filterCount++;
-          return '<!-- script filtered -->';
-        },
-      );
-      // Also remove inline event handlers that could be dangerous
-      html = html.replaceAllMapped(
-        RegExp(r'\s+on\w+\s*=', caseSensitive: false),
-        (match) {
-          _log('Filtered event handler from $url');
-          filterCount++;
-          return ' data-removed';
-        },
-      );
-    }
-
-    // Remove external iframes
-    if (html.contains('<iframe')) {
-      html = html.replaceAllMapped(
-        RegExp(r'<iframe[^>]+>', caseSensitive: false),
-        (match) {
-          _log('Filtered iframe from $url: ${match.group(0)}');
-          filterCount++;
-          return '<!-- iframe filtered -->';
-        },
-      );
-    }
-
-    // Remove object/embed tags (Flash, etc.)
-    if (html.contains('<object') || html.contains('<embed')) {
-      html = html.replaceAllMapped(
-        RegExp(r'<(?:object|embed)[^>]*>', caseSensitive: false),
-        (match) {
-          _log('Filtered embedded content from $url');
-          filterCount++;
-          return '<!-- embedded content filtered -->';
-        },
-      );
-    }
-
-    // Remove external stylesheets that could be used for tracking
-    html = html.replaceAllMapped(
-      RegExp('<link[^>]+href=["' "'" '][^"' "'" ']+["' "'" '][^>]*>', caseSensitive: false),
-      (match) {
-        final tag = match.group(0) ?? '';
-        if (tag.contains('stylesheet') && !tag.contains('localhost')) {
-          _log('Filtered external stylesheet from $url');
-          filterCount++;
-          return '<!-- stylesheet filtered -->';
-        }
-        return tag; // Keep inline or local stylesheets
-      },
-    );
-
     // Inject our assets
     html = _injectAssets(html);
-    
-    if (filterCount > 0) {
-      _log('Filtered $filterCount potentially dangerous elements from $url');
-    }
 
     return html;
   }

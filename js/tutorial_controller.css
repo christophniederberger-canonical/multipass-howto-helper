@@ -38,6 +38,23 @@
   margin-top: 0.5rem;
 }
 
+.lh-run-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.lh-run-controls .lh-run-btn {
+  margin-top: 0;
+}
+
+.lh-run-btn-small {
+  font-size: 0.72rem;
+  padding: 0.18rem 0.45rem;
+  border-radius: 3px;
+}
+
 .lh-run-btn:hover:not(:disabled) {
   background-color: #15803d;
 }
@@ -93,15 +110,17 @@
 
 /* Output Section */
 .lh-output-section {
-  background-color: #1e1e1e;
-  color: white;
-  font-family: monospace;
-  font-size: 0.8rem;
+  background-color: #0f172a;
+  color: #e5e7eb;
+  font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
   max-height: 300px;
   overflow-y: auto;
   margin-top: 0.5rem;
-  padding: 0.5rem;
-  border-radius: 4px;
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #334155;
   transition: max-height 0.2s ease;
 }
 
@@ -112,8 +131,30 @@
 
 .lh-output-pre {
   margin: 0;
+  color: #f8fafc !important;
+  background: transparent !important;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  text-shadow: none;
+}
+
+.lh-output-command {
+  color: #86efac !important;
+  font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.lh-output-section code,
+.lh-output-section pre {
+  color: #f8fafc !important;
+  background: transparent !important;
 }
 
 /* Output Toggle Button */
@@ -184,6 +225,15 @@
   white-space: pre-wrap;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.lh-console-command {
+  color: #86efac;
+  font-weight: 600;
+}
+
+.lh-console-output {
+  color: #f8fafc;
 }
 
 /* Console Toggle Button */

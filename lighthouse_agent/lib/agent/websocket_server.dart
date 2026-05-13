@@ -247,7 +247,12 @@ class WebSocketServer {
     final session = _sessions.create(origin: origin, tutorialUrl: tutorialUrl);
     _channelToSession[channel] = session.sessionId;
 
-    // Do NOT send session_ready yet - wait for first exec to trigger permission dialog
+    // Return a session token immediately so the browser can issue the first exec,
+    // which will trigger permission + provisioning while the session is still pending.
+    _send(channel, SessionReady(
+      sessionId: session.sessionId,
+      vmName: session.vmName ?? 'pending',
+    ));
     _log('Session pending: ${session.sessionId} (awaiting first exec)');
   }
 
@@ -273,6 +278,21 @@ class WebSocketServer {
         message: 'Session has expired',
       ));
       _sessions.remove(sessionId);
+      return;
+    }
+
+    // Only sessions with a provisioned VM can be resumed safely.
+    // Pending/authorizing/provisioning states have no guaranteed live VM yet.
+    if (session.state == SessionState.pending ||
+        session.state == SessionState.authorizing ||
+        session.state == SessionState.provisioning) {
+      _send(channel, LighthouseError(
+        sessionId: sessionId,
+        code: 'SESSION_NOT_READY',
+        message: 'Session is not ready to resume; start a new session',
+      ));
+      _sessions.remove(sessionId);
+      _log('Rejected resume for non-ready session: $sessionId (${session.state.name})');
       return;
     }
 

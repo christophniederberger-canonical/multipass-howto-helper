@@ -24,17 +24,36 @@ class CommandSanitizer {
       );
     }
 
-    // Blocklist of dangerous commands
+    // Blocklist from engineering plan.
     const blockedCommands = {
-      'mount', 'umount', 'mkfs', 'fdisk', 'modprobe', 'insmod', 'rm', 'mv', 
-      'cp', 'ln', 'dd', 'losetup', 'chroot', 'pivot_root', 'nsenter', 
-      'unshare', 'setns', 'mknod', 'chmod', 'chown', 'passwd', 'su', 'sudo',
-      'visudo', 'pkexec', 'doas', 'fuse', 'bind', 'overlay', 'squashfs',
-      'cramfs', 'iso9660', 'ntfs', 'vfat', 'msdos', '/dev/', '/sys/', '/proc/',
+      'mount',
+      'umount',
+      'mkfs',
+      'fdisk',
+      'modprobe',
+      'insmod',
     };
 
-    // Check for blocked patterns in the command
     for (final blocked in blockedCommands) {
+      final pattern = RegExp(
+        '(^|\\s|[;&|])' + RegExp.escape(blocked) + r'($|\s|[;&|])',
+        caseSensitive: false,
+      );
+      if (pattern.hasMatch(normalizedCommand)) {
+        return SanitizerResult(
+          isSafe: false,
+          reason: 'Command contains blocked pattern: $blocked',
+        );
+      }
+    }
+
+    const blockedPathPatterns = {
+      '/proc/',
+      '/sys/',
+      '/dev/',
+      '--host',
+    };
+    for (final blocked in blockedPathPatterns) {
       if (normalizedCommand.toLowerCase().contains(blocked.toLowerCase())) {
         return SanitizerResult(
           isSafe: false,
