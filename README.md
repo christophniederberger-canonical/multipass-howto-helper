@@ -2,7 +2,7 @@
 
 A cross-platform "Bridge Agent" that connects official Canonical web tutorials to a user's local [Multipass](https://multipass.run/) installation. The agent runs as a local WebSocket server that receives commands from tutorial pages, executes them inside ephemeral Multipass VMs, and streams the output back to the browser in real time.
 
-## Current Status: Day 3 Complete ✅
+## Current Status: Day 4 Complete ✅
 
 | Day | Focus | Status |
 |---|---|---|
@@ -48,6 +48,7 @@ A cross-platform "Bridge Agent" that connects official Canonical web tutorials t
 | `prompts/day1.md` | Day 1 implementation prompt |
 | `prompts/day2.md` | Day 2 implementation prompt |
 | `prompts/day3.md` | Day 3 implementation prompt |
+| `prompts/day4.md` | Day 4 implementation prompt |
 | `lighthouse_agent/` | Flutter Desktop application (Linux primary) |
 | `lighthouse_agent/lib/models/message.dart` | WebSocket JSON message codec |
 | `lighthouse_agent/lib/models/session.dart` | Session state enum + model with expiry timer |
@@ -264,11 +265,10 @@ flutter test
 
 All tests should pass. The `multipass_wrapper_test.dart` uses mocked processes and does not require Multipass to be installed.
 
-## Known Limitations (Day 3)
+## Known Limitations (Day 4)
 
 - System tray is a placeholder stub on Linux (real `tray_manager` plugin removed due to `libayatana-appindicator` linker incompatibility with the snap Flutter toolchain in the VM)
 - TLS certificates are not auto-generated yet (release build will log a TODO)
-- No browser-side JS tutorial controller yet (Day 4)
 - No local HTTP proxy for development yet (Day 5)
 - No status window with active sessions yet (Day 6)
 
@@ -288,6 +288,7 @@ Each day's work is implemented on a dedicated branch:
 - `day1` — scaffold, tray, WSS skeleton, autostart
 - `day2` — multipass CLI wrapper
 - `day3` — session manager, origin validation, permission dialog
+- `day4` — JS tutorial controller (browser-side WebSocket client)
 
 To switch to a day's branch:
 ```bash

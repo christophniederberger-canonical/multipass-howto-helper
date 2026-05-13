@@ -169,7 +169,7 @@ lib/
   ui/
     tray_icon.dart                     ← Linux-safe fallback (placeholder)
     status_window.dart                 ← Stub: active sessions window (Day 6)
-    permission_dialog.dart               ← Day 3: native Allow/Deny dialog
+    permission_dialog.dart             ← Day 3: native Allow/Deny dialog
   models/
     message.dart                       ← JSON message codec (sealed classes)
     session.dart                       ← Session enum + model with expiry timer
@@ -177,6 +177,12 @@ lib/
     autostart_linux.dart               ← XDG autostart registration
   proxy/
     tutorial_proxy.dart                ← Stub: local HTTP proxy on :8080 (Day 5)
+js/
+  tutorial_controller.js              ← Day 4: browser WebSocket client with UI injection
+  tutorial_controller.css             ← Day 4: visual states for run buttons and output panels
+test_client/
+  test.js                              ← Node.js WebSocket test client
+  index.html                           ← Browser test page for manual testing
 assets/
   icon_normal.png                      ← Placeholder tray icon (green)
   icon_error.png                       ← Placeholder tray icon (red)
