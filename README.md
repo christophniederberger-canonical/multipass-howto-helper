@@ -43,25 +43,26 @@ multipass version        # confirms Multipass is installed
 ## Architecture
 
 ```
-[Browser: ubuntu.com/tutorials/...]
-  └── JS Tutorial Controller  ← injected by Canonical (prod) or local proxy (dev)
+[Browser: localhost:8080/tutorials/...]
+  └── JS Tutorial Controller  ← injected by tutorial proxy
         │  WebSocket  ws://localhost:50051
         ▼
 [Lighthouse Agent: Flutter Desktop]
-  ├── System tray icon
+  ├── System tray icon (normal / error state)
   ├── WebSocket server (port 50051)
   │     └── Debug: ws://  |  Release: wss:// with mkcert TLS
+  ├── HTTP tutorial proxy (port 8080)
+  │     └── Fetches ubuntu.com pages, injects JS controller
   ├── Message + session models (JSON protocol)
   ├── Multipass CLI wrapper (launch, exec streaming, delete --purge)
   ├── Session manager (pending → authorizing → provisioning → ready → expiring → purged)
   ├── Origin validator (ubuntu.com/canonical.com + localhost in debug)
   ├── Permission dialog (native Allow/Deny prompt)
-  ├── Command sanitizer (blocklist of dangerous commands)
-  └── Day 5–7 stubs ready to fill in
+  └── Command sanitizer (blocklist of dangerous commands)
 
 [Local JS Files: js/]
-  ├── tutorial_controller.js  ← browser WebSocket client with UI injection
-  └── tutorial_controller.css ← visual states for run buttons and output panels
+  ├── tutorial_controller.js  ← served by proxy at /js/
+  └── tutorial_controller.css ← served by proxy at /js/
 ```
 
 ---
@@ -150,8 +151,8 @@ All tests pass. `multipass_wrapper_test.dart` uses mocked processes and does not
 | Day 2 | Multipass CLI wrapper (launch, exec streaming, delete) | **Complete** |
 | Day 3 | Session manager, origin validation, permission dialog | **Complete** |
 | Day 4 | JS tutorial controller (browser side) | **Complete** |
-| Day 5 | Local test proxy + end-to-end integration | Not started |
-| Day 6 | Status window, command sanitizer | Not started |
+| Day 5 | Local test proxy + end-to-end integration | **Complete** |
+| Day 6 | Status window, console panel | Not started |
 | Day 7 | Buffer, polish, demo prep | Not started |
 
 ---
