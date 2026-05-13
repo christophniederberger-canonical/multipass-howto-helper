@@ -16,7 +16,7 @@ Implement the full session lifecycle state machine, the native Allow/Deny permis
 
 ## Execution Strategy: Parallel Subagents with Competition
 
-This prompt launches **3 subagents in parallel**. Two of them compete on the hardest file (`websocket_server.dart`) — the main agent reviews both submissions and picks the winner.
+This prompt launches **4 subagents in parallel**. Two of them compete on the hardest file (`websocket_server.dart`) — the main agent reviews both submissions and picks the winner.
 
 ```
                     ┌─────────────────────────────────────────┐
