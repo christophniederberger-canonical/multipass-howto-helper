@@ -35,7 +35,6 @@ Flutter Desktop application for **Project Lighthouse** — a local bridge agent 
 
 | Component | File | Day |
 |---|---|---|
-| Command sanitizer | `lib/agent/command_sanitizer.dart` | Day 6 |
 | Status window | `lib/ui/status_window.dart` | Day 6 |
 | Tutorial proxy | `lib/proxy/tutorial_proxy.dart` | Day 5 |
 
@@ -163,7 +162,7 @@ lib/
     websocket_server.dart              ← WSS listener (ws debug / wss release), full session lifecycle
     session_manager.dart               ← Day 3: session state machine, timer management
     origin_validator.dart              ← Day 3: origin allowlist check (ubuntu.com/canonical.com)
-    command_sanitizer.dart             ← Stub: command blocklist (Day 6)
+    command_sanitizer.dart             ← Day 3: command validation with blocklist of dangerous commands
     multipass_wrapper.dart             ← Day 2: multipass CLI wrappers (launch, exec, delete)
   ui/
     tray_icon.dart                     ← Linux-safe fallback (placeholder)

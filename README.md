@@ -29,8 +29,7 @@ A cross-platform "Bridge Agent" that connects official Canonical web tutorials t
   ├── Multipass CLI wrapper (launch, exec streaming, delete --purge)
   ├── Session manager with full lifecycle (pending → authorizing → provisioning → ready → expiring → purged)
   ├── Origin validator (ubuntu.com/canonical.com domains + localhost in debug)
-  ├── Permission dialog (native Allow/Deny prompt on first command)
-  └── Day 4–7 stubs ready to fill in
+  ├── Permission dialog (native Allow/Deny prompt on first command)├── Command sanitizer (blocklist of dangerous commands)  └── Day 4–7 stubs ready to fill in
 ```
 
 ## Repository Layout
@@ -50,6 +49,7 @@ A cross-platform "Bridge Agent" that connects official Canonical web tutorials t
 | `lighthouse_agent/lib/agent/session_manager.dart` | Session lifecycle manager with timer management |
 | `lighthouse_agent/lib/agent/multipass_wrapper.dart` | Multipass CLI wrapper (launch, exec, delete) |
 | `lighthouse_agent/lib/ui/permission_dialog.dart` | Native Allow/Deny permission dialog |
+| `lighthouse_agent/lib/agent/command_sanitizer.dart` | Day 3: command validation with blocklist of dangerous commands |
 | `lighthouse_agent/lib/platform/autostart_linux.dart` | XDG autostart registration |
 | `lighthouse_agent/lib/main.dart` | App entry point with startup sequence |
 | `test_client/` | Node.js WebSocket test client |
@@ -255,6 +255,14 @@ flutter test
 
 All tests should pass. The `multipass_wrapper_test.dart` uses mocked processes and does not require Multipass to be installed.
 
+## Known Limitations (Day 3)
+
+- System tray is a placeholder stub on Linux (real `tray_manager` plugin removed due to `libayatana-appindicator` linker incompatibility with the snap Flutter toolchain in the VM)
+- TLS certificates are not auto-generated yet (release build will log a TODO)
+- No browser-side JS tutorial controller yet (Day 4)
+- No local HTTP proxy for development yet (Day 5)
+- No status window with active sessions yet (Day 6)
+
 ### Building for Release
 
 ```bash
@@ -270,10 +278,10 @@ Each day's work is implemented on a dedicated branch:
 - `main` — stable baseline
 - `day1` — scaffold, tray, WSS skeleton, autostart
 - `day2` — multipass CLI wrapper
-- `day3` — session manager, origin validation, permission dialog (upcoming)
+- `day3` — session manager, origin validation, permission dialog
 
 To switch to a day's branch:
 ```bash
-git checkout day2
+git checkout day3
 ```
 
