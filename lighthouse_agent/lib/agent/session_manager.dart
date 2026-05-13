@@ -30,10 +30,10 @@ class SessionManager {
     _sessions.remove(sessionId);
   }
 
-  void startExpiry(String sessionId, {required void Function() onExpire}) {
+  void startExpiry(String sessionId, {required void Function() onExpire, int reconnectionWindowSeconds = 30}) {
     final session = _sessions[sessionId];
     if (session != null) {
-      session.startExpiryTimer(onExpire: onExpire);
+      session.startExpiryTimer(onExpire: onExpire, reconnectionWindowSeconds: reconnectionWindowSeconds);
     }
   }
 

@@ -8,7 +8,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-
+import '../utils/logger.dart';
 import 'multipass_wrapper.dart';
 import '../models/message.dart';
 import '../models/session.dart';
@@ -25,7 +25,7 @@ class WebSocketServer {
     CommandSanitizer? commandSanitizer,
     MultipassWrapper? multipass,
     // Using the callback-based approach instead of direct permission dialog
-    Future<PermissionDecision> Function(String origin)? onPermissionRequested,
+    Future<PermissionDecision> Function(String origin, String sessionId)? onPermissionRequested,
   })  : _sessions = sessionManager ?? SessionManager(),
         _originValidator = originValidator ?? const OriginValidator(),
         _sanitizer = commandSanitizer ?? const CommandSanitizer(),
@@ -37,11 +37,17 @@ class WebSocketServer {
   final Set<WebSocketChannel> _connections = <WebSocketChannel>{};
   final Map<WebSocketChannel, String?> _channelToSession =
       <WebSocketChannel, String?>{};
+  final Map<WebSocketChannel, Timer> _heartbeatTimers =
+      <WebSocketChannel, Timer>{};
+  static const int _heartbeatIntervalSeconds = 30;
+  static const int _heartbeatMissLimit = 3;
+  final Map<WebSocketChannel, int> _missedHeartbeats =
+      <WebSocketChannel, int>{};
   final SessionManager _sessions;
   final OriginValidator _originValidator;
   final CommandSanitizer _sanitizer;
   final MultipassWrapper _multipass;
-  final Future<PermissionDecision> Function(String origin)? _onPermissionRequested;
+  final Future<PermissionDecision> Function(String origin, String sessionId)? _onPermissionRequested;
   HttpServer? _server;
 
   Future<void> start() async {
@@ -83,11 +89,14 @@ class WebSocketServer {
   }
 
   Future<void> stop() async {
-    for (final connection in _connections.toList()) {
-      await connection.sink.close();
+    for (final channel in _connections.toList()) {
+      _stopHeartbeat(channel);
+      await channel.sink.close();
     }
     _connections.clear();
     _channelToSession.clear();
+    _heartbeatTimers.clear();
+    _missedHeartbeats.clear();
     
     // Cancel all active expiry timers for sessions
     for (final session in _sessions.sessions) {
@@ -128,6 +137,8 @@ class WebSocketServer {
   void _handleConnection(WebSocketChannel channel) {
     _connections.add(channel);
     _channelToSession[channel] = null;
+    _missedHeartbeats[channel] = 0;
+    _startHeartbeat(channel);
     _log('WebSocket client connected');
 
     channel.stream.listen(
@@ -178,6 +189,11 @@ class WebSocketServer {
     _log('Received ${parsed.type}');
 
     switch (parsed) {
+      case Pong():
+        _handlePong(channel);
+      case Ping():
+        // Respond with Pong
+        _send(channel, const Pong());
       case SessionStart(:final origin, :final tutorialUrl):
         _handleSessionStart(channel, origin: origin, tutorialUrl: tutorialUrl);
       case SessionResume(:final sessionId):
@@ -320,7 +336,7 @@ class WebSocketServer {
       }
       
       try {
-        final decision = await _onPermissionRequested(session.origin);
+        final decision = await _onPermissionRequested(session.origin, sessionId);
         if (decision == PermissionDecision.deny) {
           // If permission was denied, mark session as purged and close connection
           session.state = SessionState.purged;
@@ -354,12 +370,26 @@ class WebSocketServer {
             _log('VM launched: $vmName');
           } on Object catch (error) {
             session.state = SessionState.pending; // Reset to pending so user can retry
+            
+            // Provide actionable error messages for common issues
+            final errorStr = error.toString().toLowerCase();
+            String message;
+            if (errorStr.contains('daemon')) {
+              message = 'Multipass daemon not running. Try: sudo systemctl start multipass';
+            } else if (errorStr.contains('permission denied') || errorStr.contains('sudo')) {
+              message = 'Permission denied. Make sure your user is in the multipass group: sudo usermod -a -G multipass \$USER';
+            } else if (errorStr.contains('not found') || errorStr.contains('multipass')) {
+              message = 'Multipass not found. Install it with: sudo snap install multipass';
+            } else {
+              message = 'Failed to launch VM: $error';
+            }
+            
             _send(channel, LighthouseError(
               sessionId: sessionId,
               code: 'VM_LAUNCH_FAILED',
-              message: 'Failed to launch VM: $error',
+              message: message,
             ));
-            _log('VM launch failed: $error');
+            _log('VM launch failed: $message');
             return;
           }
         }
@@ -474,6 +504,7 @@ class WebSocketServer {
   }
 
   void _onConnectionClosed(WebSocketChannel channel) {
+    _stopHeartbeat(channel);
     _connections.remove(channel);
     final sessionId = _channelToSession.remove(channel);
     _log('WebSocket client disconnected (session: $sessionId)');
@@ -481,6 +512,7 @@ class WebSocketServer {
     if (sessionId != null) {
       final session = _sessions.find(sessionId);
       if (session != null && session.state != SessionState.purged) {
+        // Reconnection window: 60 seconds to resume
         _sessions.startExpiry(sessionId, onExpire: () {
           // This callback runs when the timer expires
           final expiredSession = _sessions.find(sessionId);
@@ -503,9 +535,48 @@ class WebSocketServer {
             _sessions.remove(sessionId);
             _log('Session $sessionId expired, VM purged');
           }
-        });
+        }, reconnectionWindowSeconds: 60);
       }
     }
+  }
+
+  void _startHeartbeat(WebSocketChannel channel) {
+    _stopHeartbeat(channel);
+    _heartbeatTimers[channel] = Timer.periodic(
+      const Duration(seconds: _heartbeatIntervalSeconds),
+      (_) => _sendHeartbeat(channel),
+    );
+  }
+
+  void _stopHeartbeat(WebSocketChannel channel) {
+    _heartbeatTimers.remove(channel)?.cancel();
+    _missedHeartbeats.remove(channel);
+  }
+
+  void _sendHeartbeat(WebSocketChannel channel) {
+    if (!_connections.contains(channel)) return;
+    
+    try {
+      _send(channel, const Ping());
+      _log('Heartbeat sent to client');
+      
+      // Check missed heartbeats after sending
+      final missed = (_missedHeartbeats[channel] ?? 0) + 1;
+      _missedHeartbeats[channel] = missed;
+      
+      if (missed >= _heartbeatMissLimit) {
+        _err('Client missed $missed heartbeats, closing connection');
+        _stopHeartbeat(channel);
+        channel.sink.close();
+      }
+    } catch (e) {
+      _err('Failed to send heartbeat: $e');
+    }
+  }
+
+  void _handlePong(WebSocketChannel channel) {
+    _missedHeartbeats[channel] = 0;
+    _log('Heartbeat acknowledged');
   }
 
   // ----------------------------------------------------------------
@@ -518,11 +589,15 @@ class WebSocketServer {
   }
 
   void _log(String message) {
+    final logger = Logger.instance;
     if (kDebugMode) stdout.writeln(message);
+    logger.debug(message);
   }
 
-  void _err(String message) {
-    stderr.writeln(message);
+  void _err(String message, [Object? error, StackTrace? stackTrace]) {
+    final logger = Logger.instance;
+    if (kDebugMode) stderr.writeln(message);
+    logger.error(message, error, stackTrace);
   }
 
   // TODO(day3): remove test hook — temporary Day 2 integration test.

@@ -36,7 +36,7 @@ class FakeMultipassWrapper extends MultipassWrapper {
   final List<String> deletedVms = [];
 
   @override
-  Future<String> launch({required String vmName}) async {
+  Future<String> launch({required String vmName, int maxRetries = 3}) async {
     await Future.delayed(launchDelay);
     if (shouldFailLaunch) {
       throw Exception('multipass launch failed: no disk space');
@@ -85,7 +85,7 @@ void main() {
         port: port,
         sessionManager: sessionManager,
         multipass: fakeMultipass,
-        onPermissionRequested: (origin) async => autoDecision,
+        onPermissionRequested: (origin, sessionId) async => autoDecision,
       );
       await server.start();
     }
@@ -125,7 +125,7 @@ void main() {
             doneCompleter.complete();
           }
         },
-        onError: (error) {
+        onError: (Object error) {
           if (!doneCompleter.isCompleted) {
             doneCompleter.completeError(error);
           }

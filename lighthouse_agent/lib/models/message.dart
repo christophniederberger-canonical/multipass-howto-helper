@@ -175,6 +175,26 @@ final class AgentError extends LighthouseMessage {
   };
 }
 
+final class Ping extends LighthouseMessage {
+  const Ping();
+
+  @override
+  String get type => 'ping';
+
+  @override
+  Map<String, Object?> toJson() => {'type': type};
+}
+
+final class Pong extends LighthouseMessage {
+  const Pong();
+
+  @override
+  String get type => 'pong';
+
+  @override
+  Map<String, Object?> toJson() => {'type': type};
+}
+
 final class MessageCodec {
   const MessageCodec();
 
@@ -228,6 +248,8 @@ final class MessageCodec {
         code: _string(json, 'code'),
         message: _string(json, 'message'),
       ),
+      'ping' => const Ping(),
+      'pong' => const Pong(),
       _ => throw FormatException('Unknown message type: $type'),
     };
   }

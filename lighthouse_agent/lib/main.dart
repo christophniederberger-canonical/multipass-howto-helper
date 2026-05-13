@@ -50,9 +50,10 @@ Future<void> main() async {
 
   _server = WebSocketServer(
     multipass: multipass,
-    onPermissionRequested: (origin) => permissionDialog.requestTutorialPermission(
+    onPermissionRequested: (origin, sessionId) => permissionDialog.requestTutorialPermission(
       context: navigatorKey.currentContext!,
       origin: origin,
+      sessionId: sessionId,
     ),
   );
   if (!kDebugMode && !await _server.hasValidCertificates()) {
