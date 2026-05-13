@@ -36,8 +36,10 @@ A cross-platform "Bridge Agent" that connects official Canonical web tutorials t
 |---|---|
 | `project-plan.md` | Original product brief |
 | `engineering-plan.md` | Detailed engineering plan with protocol spec, lifecycle, schedule |
+| `prompts/` | Day-by-day implementation prompts |
 | `prompts/day1.md` | Day 1 implementation prompt |
 | `prompts/day2.md` | Day 2 implementation prompt |
+| `prompts/day3.md` | Day 3 implementation prompt |
 | `lighthouse_agent/` | Flutter Desktop application (Linux primary) |
 | `lighthouse_agent/lib/models/message.dart` | WebSocket JSON message codec |
 | `lighthouse_agent/lib/models/session.dart` | Session state enum + model |
