@@ -61,7 +61,13 @@ class TutorialProxy {
   }
 
   Future<Response> _serveStaticFile(Request request) async {
-    final filePath = request.url.path.replaceFirst('js/', '');
+    var filePath = request.url.path;
+    // Remove leading slash if present (shelf gives path as /js/file.js)
+    if (filePath.startsWith('/')) {
+      filePath = filePath.substring(1);
+    }
+    // Now strip the 'js/' prefix to get the filename
+    filePath = filePath.replaceFirst('js/', '');
     final fullPath = path.join(_workspaceRoot, 'js', filePath);
     final file = File(fullPath);
 
@@ -80,8 +86,10 @@ class TutorialProxy {
   }
 
   Future<Response> _proxyTutorial(Request request) async {
+    final uriPath = request.url.path;
+    final urlPath = uriPath.isEmpty ? '/' : (uriPath.startsWith('/') ? uriPath : '/$uriPath');
     final query = request.url.query.isNotEmpty ? '?${request.url.query}' : '';
-    final url = 'https://ubuntu.com${request.url.path}$query';
+    final url = 'https://ubuntu.com$urlPath$query';
 
     // Check cache first
     final cached = _getCached(url);

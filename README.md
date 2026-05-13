@@ -96,26 +96,34 @@ node test.js --multipass # full Multipass integration test
 [12:54:39.030] INFO  VM Name: lighthouse-1158b6e7
 ```
 
-### 3. Test the Browser Controller (Day 4)
+### 3. Test the Browser Controller (Day 4/5)
 
-Since Day 5 (local proxy) is not yet implemented, serve the JS files with a simple HTTP server:
+The agent includes a local tutorial proxy on port 8080 that fetches real Canonical tutorials and injects the JS controller automatically.
 
-```bash
-# In a new terminal, serve the test client directory
-cd test_client
-npx serve .
-# or: python3 -m http.server 8080
+**Open a tutorial in your browser:**
+```
+http://localhost:8080/tutorials/install-and-configure-samba
 ```
 
-Open `http://localhost:8080/index.html` in your browser:
+The proxy:
+1. Fetches the tutorial page from `ubuntu.com`
+2. Injects `tutorial_controller.css` and `tutorial_controller.js`
+3. Serves it to your browser — no manual setup needed
 
-1. The page simulates a tutorial with `<pre><code>` blocks
-2. `tutorial_controller.js` auto-initializes on page load
-3. "▶ Run" buttons are injected next to each code block
-4. Clicking Run connects to the agent and executes via Multipass
-5. Live output streams back and displays below each block
+**What you'll see:**
+- "▶ Run" buttons injected next to each code block
+- Permission dialog when clicking the first Run button
+- Live command output streamed back below each block
+- Green/red indicators for success/failure
 
-#### Load JS on Any Page
+**For the test client (without fetching from ubuntu.com):**
+```bash
+cd test_client
+npx serve .
+```
+Open `http://localhost:8080/index.html` — same JS controller, no proxy needed.
+
+#### Load JS on Any Page (Manual)
 
 To test the controller on any webpage, open the browser console and run:
 
