@@ -39,8 +39,11 @@ class AutostartRegistration {
     await desktopFile.writeAsString('''
 [Desktop Entry]
 Name=Lighthouse Agent
+Comment=Local bridge agent for Canonical tutorials
 Exec=$executable
+Icon=lighthouse
 Type=Application
+Categories=System;Utility;
 Terminal=false
 Hidden=false
 X-GNOME-Autostart-enabled=true

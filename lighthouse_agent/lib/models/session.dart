@@ -21,8 +21,12 @@ class Session {
   final String sessionId;
   final String tutorialUrl;
   final String origin;
+
   SessionState state;
+
   String? vmName;
-  DateTime createdAt;
+
+  final DateTime createdAt;
+
   DateTime? expiresAt;
 }

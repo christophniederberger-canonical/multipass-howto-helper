@@ -93,6 +93,8 @@ final class SessionDenied extends LighthouseMessage {
   Map<String, Object?> toJson() => {'type': type};
 }
 
+enum OutputStream { stdout, stderr }
+
 final class Output extends LighthouseMessage {
   const Output({
     required this.sessionId,
@@ -101,7 +103,7 @@ final class Output extends LighthouseMessage {
   });
 
   final String sessionId;
-  final String stream;
+  final OutputStream stream;
   final String data;
 
   @override
@@ -111,7 +113,7 @@ final class Output extends LighthouseMessage {
   Map<String, Object?> toJson() => {
     'type': type,
     'session_id': sessionId,
-    'stream': stream,
+    'stream': stream.name,
     'data': data,
   };
 }
@@ -210,7 +212,7 @@ final class MessageCodec {
       'session_denied' => const SessionDenied(),
       'output' => Output(
         sessionId: _string(json, 'session_id'),
-        stream: _string(json, 'stream'),
+        stream: _parseOutputStream(_string(json, 'stream')),
         data: _string(json, 'data'),
       ),
       'exec_done' => ExecDone(
@@ -244,5 +246,13 @@ final class MessageCodec {
       return value;
     }
     throw FormatException('Expected int field: $key');
+  }
+
+  static OutputStream _parseOutputStream(String value) {
+    return switch (value) {
+      'stdout' => OutputStream.stdout,
+      'stderr' => OutputStream.stderr,
+      _ => throw FormatException('Unknown output stream: $value'),
+    };
   }
 }

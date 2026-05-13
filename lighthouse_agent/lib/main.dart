@@ -2,13 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider_linux/path_provider_linux.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'agent/websocket_server.dart';
 import 'platform/autostart_linux.dart';
 import 'ui/status_window.dart';
 import 'ui/tray_icon.dart';
+
+late final LighthouseTray _tray;
+late final WebSocketServer _server;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,32 +28,26 @@ Future<void> main() async {
     await windowManager.hide();
   });
 
-  final tray = LighthouseTray();
-  await tray.setupTrayIcon();
+  _tray = LighthouseTray();
+  await _tray.setupTrayIcon();
 
-  final supportPath = await PathProviderLinux().getApplicationSupportPath();
-  if (supportPath == null) {
-    stderr.writeln('Could not resolve application support directory.');
-    await tray.setTrayState(TrayState.error);
-    return;
-  }
-
-  final appDataDir = Directory(supportPath);
+  final supportDir = await getApplicationSupportDirectory();
+  final appDataDir = Directory(supportDir.path);
   if (Platform.isLinux) {
     await AutostartRegistration(appDataDir: appDataDir).registerIfNeeded();
   }
 
-  final server = WebSocketServer();
-  if (!kDebugMode && !await server.hasValidCertificates()) {
+  _server = WebSocketServer();
+  if (!kDebugMode && !await _server.hasValidCertificates()) {
     stderr.writeln('TLS certificates are missing. TODO: show mkcert setup UI.');
   }
 
   try {
-    await server.start();
+    await _server.start();
   } on Object catch (error, stackTrace) {
     stderr.writeln('Failed to start WebSocket server: $error');
-    stderr.writeln(stackTrace);
-    await tray.setTrayState(TrayState.error);
+    if (kDebugMode) stderr.writeln(stackTrace);
+    await _tray.setTrayState(TrayState.error);
   }
 
   runApp(const LighthouseApp());
