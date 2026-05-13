@@ -10,7 +10,7 @@ Flutter Desktop application for **Project Lighthouse** — a local bridge agent 
 - Executes commands inside VMs and streams output back to the browser in real time
 - Auto-cleans VMs after 30 minutes of browser inactivity
 
-## Day 3 Status ✅
+## Day 4 Status ✅
 
 ### What's Working
 
@@ -30,6 +30,8 @@ Flutter Desktop application for **Project Lighthouse** — a local bridge agent 
 | **Permission dialog** | `lib/ui/permission_dialog.dart` | ✅ **Day 3: native Allow/Deny prompt on first command** |
 | **Session lifecycle** | `lib/agent/websocket_server.dart` | ✅ **Day 3: pending → authorizing → provisioning → ready → expiring → purged** |
 | **30-min expiry timer** | `lib/agent/websocket_server.dart` | ✅ **Day 3: auto-purge VMs after 30 min browser inactivity** |
+| **JS Tutorial Controller** | `js/tutorial_controller.js` | ✅ **Day 4: browser WebSocket client with UI injection** |
+| **Tutorial Controller CSS** | `js/tutorial_controller.css` | ✅ **Day 4: visual states for run buttons and output panels** |
 
 ### Stubs Ready for Future Days
 
@@ -167,7 +169,7 @@ lib/
   ui/
     tray_icon.dart                     ← Linux-safe fallback (placeholder)
     status_window.dart                 ← Stub: active sessions window (Day 6)
-    permission_dialog.dart               ← Day 3: native Allow/Deny dialog
+    permission_dialog.dart             ← Day 3: native Allow/Deny dialog
   models/
     message.dart                       ← JSON message codec (sealed classes)
     session.dart                       ← Session enum + model with expiry timer
@@ -175,6 +177,12 @@ lib/
     autostart_linux.dart               ← XDG autostart registration
   proxy/
     tutorial_proxy.dart                ← Stub: local HTTP proxy on :8080 (Day 5)
+js/
+  tutorial_controller.js              ← Day 4: browser WebSocket client with UI injection
+  tutorial_controller.css             ← Day 4: visual states for run buttons and output panels
+test_client/
+  test.js                              ← Node.js WebSocket test client
+  index.html                           ← Browser test page for manual testing
 assets/
   icon_normal.png                      ← Placeholder tray icon (green)
   icon_error.png                       ← Placeholder tray icon (red)
