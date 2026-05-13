@@ -44,13 +44,21 @@ class MultipassWrapper {
 
   /// Launches a new VM with the given name.
   ///
-  /// Runs `multipass launch --name <vmName>` and waits for completion.
+  /// Runs `multipass launch --name <vmName> 24.04 -c 2 -m 2G -d 10G` and waits
+  /// for completion. Uses Ubuntu 24.04 with 2 CPUs, 2GB RAM, and 10GB disk.
   /// Returns the VM name on success.
   /// Throws if multipass is unavailable or launch fails.
   Future<String> launch({required String vmName}) async {
     final result = await processRun(
       'multipass',
-      <String>['launch', '--name', vmName],
+      <String>[
+        'launch',
+        '--name', vmName,
+        '24.04',
+        '-c', '2',
+        '-m', '2G',
+        '-d', '10G',
+      ],
     );
 
     if (result.exitCode != 0) {

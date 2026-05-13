@@ -100,8 +100,10 @@ async function testMultipassIntegration() {
 
   // Step 2: Send the test multipass command and wait for responses
   const messages = [];
+  // Multipass launch can take 5-10 minutes (image download + VM startup)
+  const timeoutMs = 600000; // 10 minutes
   const done = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Timeout waiting for exec_done (120s)')), 120000);
+    const timer = setTimeout(() => reject(new Error(`Timeout waiting for exec_done (${timeoutMs / 1000}s)`)), timeoutMs);
 
     ws.on('message', (raw) => {
       const msg = JSON.parse(raw.toString());
@@ -123,7 +125,8 @@ async function testMultipassIntegration() {
   }));
 
   // Wait for all messages — do NOT close the connection until we get exec_done
-  log('WAIT', 'Waiting for multipass execution to complete (may take 60-90s)...');
+  log('WAIT', `Waiting for multipass execution to complete (timeout: ${timeoutMs / 1000}s)...`);
+  log('INFO', 'This may take 5-10 minutes on first run (Ubuntu 24.04 image download)');
   await done;
 
   // Now close the connection

@@ -185,10 +185,15 @@ class WebSocketServer {
       case Exec(:final sessionId, :final command):
         // TODO(day3): remove test hook — temporary Day 2 integration test.
         if (command == '__test_multipass__') {
+          // Fire-and-forget, but log errors.
+          // We cannot await here because _onMessage is void (called from stream.listen).
           _handleTestMultipass(
             Exec(sessionId: sessionId, command: command),
             channel,
-          );
+          ).catchError((Object error, StackTrace stackTrace) {
+            _err('Test multipass hook error: $error');
+            if (kDebugMode) _err(stackTrace.toString());
+          });
           return;
         }
         _handleExec(channel, sessionId: sessionId, command: command);
