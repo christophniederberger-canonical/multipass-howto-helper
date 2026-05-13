@@ -10,7 +10,7 @@ Flutter Desktop application for **Project Lighthouse** — a local bridge agent 
 - Executes commands inside VMs and streams output back to the browser in real time
 - Auto-cleans VMs after 30 minutes of browser inactivity
 
-## Day 4 Status ✅
+## Day 5 Status ✅
 
 ### What's Working
 
@@ -32,13 +32,13 @@ Flutter Desktop application for **Project Lighthouse** — a local bridge agent 
 | **30-min expiry timer** | `lib/agent/websocket_server.dart` | ✅ **Day 3: auto-purge VMs after 30 min browser inactivity** |
 | **JS Tutorial Controller** | `js/tutorial_controller.js` | ✅ **Day 4: browser WebSocket client with UI injection** |
 | **Tutorial Controller CSS** | `js/tutorial_controller.css` | ✅ **Day 4: visual states for run buttons and output panels** |
+| **Tutorial proxy** | `lib/proxy/tutorial_proxy.dart` | ✅ **Day 5: HTTP proxy on :8080, injects JS, serves static files** |
 
 ### Stubs Ready for Future Days
 
 | Component | File | Day |
 |---|---|---|
 | Status window | `lib/ui/status_window.dart` | Day 6 |
-| Tutorial proxy | `lib/proxy/tutorial_proxy.dart` | Day 5 |
 
 ## Running Locally
 
