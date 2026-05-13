@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'agent/multipass_wrapper.dart';
 import 'agent/websocket_server.dart';
 import 'platform/autostart_linux.dart';
 import 'ui/status_window.dart';
@@ -40,6 +41,15 @@ Future<void> main() async {
   _server = WebSocketServer();
   if (!kDebugMode && !await _server.hasValidCertificates()) {
     stderr.writeln('TLS certificates are missing. TODO: show mkcert setup UI.');
+  }
+
+  // Check Multipass availability before starting the server.
+  final multipassAvailable = await const MultipassWrapper().isAvailable();
+  if (!multipassAvailable) {
+    stderr.writeln('Multipass not found in PATH. Please install Multipass.');
+    await _tray.setTrayState(TrayState.error);
+  } else {
+    stdout.writeln('Multipass detected.');
   }
 
   try {
