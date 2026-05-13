@@ -1,17 +1,127 @@
 # lighthouse_agent
 
-A new Flutter project.
+Flutter Desktop application for **Project Lighthouse** — a local bridge agent that connects Canonical web tutorials to a user's Multipass installation via WebSocket.
 
-## Getting Started
+## What It Does (End Goal)
 
-This project is a starting point for a Flutter application.
+- Runs in the system tray as a background agent
+- Accepts WebSocket connections from tutorial pages on `localhost:50051`
+- Spawns ephemeral Multipass VMs per tutorial session
+- Executes commands inside VMs and streams output back to the browser in real time
+- Auto-cleans VMs after 30 minutes of browser inactivity
 
-A few resources to get you started if this is your first Flutter project:
+## Day 1 Status ✅
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+### What's Working
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+| Component | File | Status |
+|---|---|---|
+| WebSocket server skeleton | `lib/agent/websocket_server.dart` | ✅ Accepts connections, parses JSON messages, replies with `NOT_IMPLEMENTED` |
+| Message codec (JSON) | `lib/models/message.dart` | ✅ All protocol messages defined with `toJson`/`fromJson` |
+| Session model | `lib/models/session.dart` | ✅ Enum + data model ready |
+| Linux autostart registration | `lib/platform/autostart_linux.dart` | ✅ Writes `~/.config/autostart/lighthouse.desktop` on first launch |
+| App startup sequence | `lib/main.dart` | ✅ Tray init → autostart check → cert check → WSS server start |
+| Release vs debug mode | `lib/agent/websocket_server.dart` | ✅ Debug: `ws://` / Release: `wss://` (cert loading skeleton) |
+
+### Stubs Ready for Future Days
+
+| Component | File | Day |
+|---|---|---|
+| Session manager | `lib/agent/session_manager.dart` | Day 3 |
+| Origin validator | `lib/agent/origin_validator.dart` | Day 3 |
+| Command sanitizer | `lib/agent/command_sanitizer.dart` | Day 6 |
+| Multipass wrapper | `lib/agent/multipass_wrapper.dart` | Day 2 |
+| Permission dialog | `lib/ui/permission_dialog.dart` | Day 3 |
+| Status window | `lib/ui/status_window.dart` | Day 6 |
+| Tutorial proxy | `lib/proxy/tutorial_proxy.dart` | Day 5 |
+
+## Running Locally
+
+### Prerequisites
+
+- Flutter 3.x with Linux desktop support
+- `flutter doctor` passes for Linux toolchain
+- Linux dev libraries: `sudo apt install libgtk-3-dev libblkid-dev liblzma-dev`
+
+### Debug (ws://, no TLS)
+
+```bash
+flutter run
+```
+
+The app starts a WebSocket server on `ws://127.0.0.1:50051`.
+
+### Release (wss://, requires mkcert certs)
+
+```bash
+flutter build linux --release
+./build/linux/x64/release/bundle/lighthouse_agent
+```
+
+Release mode expects TLS certificates at:
+- `~/.local/share/lighthouse/localhost.pem`
+- `~/.local/share/lighthouse/localhost-key.pem`
+
+These are **not** auto-generated yet (Day 1 TODO).
+
+## Testing from the Browser
+
+1. Open any regular web page (e.g., `about:blank`)
+2. Open DevTools → Console
+3. Paste:
+
+```javascript
+const ws = new WebSocket('ws://127.0.0.1:50051');
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    type: 'session_start',
+    origin: 'http://localhost:8080',
+    tutorial_url: 'http://localhost:8080/test'
+  }));
+};
+ws.onmessage = (e) => console.log('Received:', JSON.parse(e.data));
+ws.onerror = (e) => console.error('Error:', e);
+```
+
+Expected output:
+```
+Received: {type: 'agent_error', code: 'NOT_IMPLEMENTED', message: 'Day 1 WebSocket skeleton received the message'}
+```
+
+## Build Notes for This Environment
+
+The project was scaffolded inside a Multipass VM using the **snap Flutter SDK**. Several build fixes were needed:
+
+1. **`path_provider` replaced with `path_provider_linux`** — the cross-platform package pulled in Android/iOS native toolchain dependencies (`jni_flutter`, `objective_c`, `native_toolchain_c`) that failed to link under the snap toolchain.
+2. **`tray_manager` replaced with a Linux stub** — the `libayatana-appindicator` library caused glibc/GTK symbol mismatches when linking against the snap-bundled libraries.
+3. **CMake toolchain override** — `linux/CMakeLists.txt` forces system `clang/clang++/ld` to avoid ABI mismatches.
+4. **Deprecation warning policy** — `-Wno-error=deprecated-declarations` was added to handle upstream plugin deprecation warnings without failing the build.
+
+If building on a **non-snap Flutter installation** (recommended for host development), these workarounds may be unnecessary.
+
+## Project Structure
+
+```
+lib/
+  main.dart                          ← Entry point, startup sequence
+  agent/
+    websocket_server.dart              ← WSS listener (ws debug / wss release)
+    session_manager.dart               ← Stub: session state machine
+    origin_validator.dart              ← Stub: origin allowlist check
+    command_sanitizer.dart             ← Stub: command blocklist
+    multipass_wrapper.dart             ← Stub: multipass CLI wrappers
+  ui/
+    tray_icon.dart                     ← Linux-safe fallback (placeholder)
+    status_window.dart                 ← Stub: active sessions window
+    permission_dialog.dart               ← Stub: Allow/Deny dialog
+  models/
+    message.dart                       ← JSON message codec (sealed classes)
+    session.dart                       ← Session enum + model
+  platform/
+    autostart_linux.dart               ← XDG autostart registration
+  proxy/
+    tutorial_proxy.dart                ← Stub: local HTTP proxy on :8080
+assets/
+  icon_normal.png                      ← Placeholder tray icon (green)
+  icon_error.png                       ← Placeholder tray icon (red)
+```
