@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:lighthouse_agent/main.dart';
@@ -8,12 +9,13 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const LighthouseApp());
+    // Pump a few frames to let async operations complete
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('Lighthouse Agent'), findsOneWidget);
-    expect(
-      find.text('Active sessions will appear here in Day 6.'),
-      findsOneWidget,
-    );
+    // Status window shows the app bar title and either VMs or loading state
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
   group('MessageCodec', () {

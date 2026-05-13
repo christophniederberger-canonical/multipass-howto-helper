@@ -39,11 +39,11 @@ class Session {
     expiryTimer = null;
   }
 
-  void startExpiryTimer({required void Function() onExpire}) {
+  void startExpiryTimer({required void Function() onExpire, int reconnectionWindowSeconds = 30}) {
     cancelExpiryTimer(); // Cancel any existing timer
     state = SessionState.expiring;
-    expiresAt = DateTime.now().add(const Duration(minutes: 30));
-    expiryTimer = Timer(const Duration(minutes: 30), onExpire);
+    expiresAt = DateTime.now().add(Duration(seconds: reconnectionWindowSeconds));
+    expiryTimer = Timer(Duration(seconds: reconnectionWindowSeconds), onExpire);
   }
 
   bool get isActive => state != SessionState.purged;
