@@ -1,0 +1,53 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+pubspec.lock
+
+# Flutter generated
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.directory
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Credentials / secrets
+*.pem
+*.key
+*.p12
+*.pfx
+*-key.pem
+
+# mkcert generated certs (runtime, not source)
+localhost.pem
+localhost-key.pem
+
+# OS logs
+*.log
+
+# Coverage
+coverage/
+lcov.info
