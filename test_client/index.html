@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Tutorial - Lighthouse Agent</title>
+  <link rel="stylesheet" href="/js/tutorial_controller.css">
+</head>
+<body>
+  <h1>Test Tutorial</h1>
+  <p>Welcome to the Lighthouse Agent test page. This simulates a tutorial page with code blocks.</p>
+  
+  <h2>Step 1: List your home directory</h2>
+  <p>This command will list files in your home directory:</p>
+  <pre><code>ls -la ~</code></pre>
+  
+  <h2>Step 2: Check OS version</h2>
+  <p>This command will show your operating system information:</p>
+  <pre><code>cat /etc/os-release</code></pre>
+  
+  <h2>Step 3: Check current user</h2>
+  <p>This command will show the current user:</p>
+  <pre><code>whoami</code></pre>
+  
+  <h2>Step 4: Test a blocked command</h2>
+  <p>This command should be blocked by the command sanitizer:</p>
+  <pre><code>mount --bind /host /mnt</code></pre>
+  
+  <script src="/js/tutorial_controller.js"></script>
+</body>
+</html>

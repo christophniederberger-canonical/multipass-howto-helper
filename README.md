@@ -9,7 +9,7 @@ A cross-platform "Bridge Agent" that connects official Canonical web tutorials t
 | Day 1 | Scaffold, tray icon, WSS server skeleton, autostart | **Complete** |
 | Day 2 | Multipass CLI wrapper (launch, exec streaming, delete) | **Complete** |
 | Day 3 | Session manager, origin validation, permission dialog | **Complete** |
-| Day 4 | JS tutorial controller (browser side) | Not started |
+| Day 4 | JS tutorial controller (browser side) | **Complete** |
 | Day 5 | Local test proxy + end-to-end integration | Not started |
 | Day 6 | Status window, command sanitizer | Not started |
 | Day 7 | Buffer, polish, demo prep | Not started |
@@ -29,7 +29,13 @@ A cross-platform "Bridge Agent" that connects official Canonical web tutorials t
   ├── Multipass CLI wrapper (launch, exec streaming, delete --purge)
   ├── Session manager with full lifecycle (pending → authorizing → provisioning → ready → expiring → purged)
   ├── Origin validator (ubuntu.com/canonical.com domains + localhost in debug)
-  ├── Permission dialog (native Allow/Deny prompt on first command)├── Command sanitizer (blocklist of dangerous commands)  └── Day 4–7 stubs ready to fill in
+  ├── Permission dialog (native Allow/Deny prompt on first command)
+  ├── Command sanitizer (blocklist of dangerous commands)
+  └── Day 5–7 stubs ready to fill in
+
+[Local JS Files: js/]
+  ├── tutorial_controller.js  ← browser WebSocket client with UI injection
+  └── tutorial_controller.css ← visual states for run buttons and output panels
 ```
 
 ## Repository Layout
@@ -54,6 +60,9 @@ A cross-platform "Bridge Agent" that connects official Canonical web tutorials t
 | `lighthouse_agent/lib/main.dart` | App entry point with startup sequence |
 | `test_client/` | Node.js WebSocket test client |
 | `test_client/test.js` | Basic connection + multipass integration tests |
+| `js/` | Browser-side JavaScript files |
+| `js/tutorial_controller.js` | Browser WebSocket client with UI injection |
+| `js/tutorial_controller.css` | Visual states for run buttons and output panels |
 
 ## Quick Start (Host)
 
