@@ -9,6 +9,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'multipass_wrapper.dart';
 import '../models/message.dart';
 import '../models/session.dart';
 import 'command_sanitizer.dart';
@@ -168,6 +169,14 @@ class WebSocketServer {
       case SessionResume(:final sessionId):
         _handleSessionResume(channel, sessionId: sessionId);
       case Exec(:final sessionId, :final command):
+        // TODO(day3): remove test hook — temporary Day 2 integration test.
+        if (command == '__test_multipass__') {
+          _handleTestMultipass(
+            Exec(sessionId: sessionId, command: command),
+            channel,
+          );
+          return;
+        }
         _handleExec(channel, sessionId: sessionId, command: command);
       case Finish(:final sessionId):
         _handleFinish(channel, sessionId: sessionId);
@@ -336,5 +345,55 @@ class WebSocketServer {
 
   void _err(String message) {
     stderr.writeln(message);
+  }
+
+  // TODO(day3): remove test hook — temporary Day 2 integration test.
+  Future<void> _handleTestMultipass(Exec exec, WebSocketChannel channel) async {
+    const wrapper = MultipassWrapper();
+    final vmName = 'lighthouse-test-${DateTime.now().millisecondsSinceEpoch}';
+
+    try {
+      await wrapper.launch(vmName: vmName);
+      await for (final event in wrapper.exec(
+        vmName: vmName,
+        command: 'echo hello from multipass',
+      )) {
+        if (event is CommandOutput) {
+          channel.sink.add(
+            _codec.encode(
+              Output(
+                sessionId: exec.sessionId,
+                stream: event.stream == 'stderr'
+                    ? OutputStream.stderr
+                    : OutputStream.stdout,
+                data: event.data,
+              ),
+            ),
+          );
+        } else if (event is ExecResult) {
+          channel.sink.add(
+            _codec.encode(
+              ExecDone(
+                sessionId: exec.sessionId,
+                exitCode: event.exitCode,
+              ),
+            ),
+          );
+        }
+      }
+      await wrapper.delete(vmName: vmName);
+    } on Object catch (error, stackTrace) {
+      stderr.writeln('Test multipass hook failed: $error');
+      stderr.writeln(stackTrace);
+      channel.sink.add(
+        _codec.encode(
+          LighthouseError(
+            sessionId: exec.sessionId,
+            code: 'MULTIPASS_ERROR',
+            message: error.toString(),
+          ),
+        ),
+      );
+    }
   }
 }
