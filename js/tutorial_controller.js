@@ -689,19 +689,22 @@ class TutorialController {
   }
 }
 
-// Initialize the controller when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize the controller whether script loads before or after DOMContentLoaded.
+(function bootstrapTutorialController() {
   const controller = new TutorialController();
-  controller.init();
-  
-  // After WebSocket connection is established and session is ready,
-  // inject the UI elements
-  // We'll add a slight delay to ensure the WebSocket is connected
-  setTimeout(() => {
-    if (controller.connectionEstablished) {
-      controller._injectRunButtons();
-      controller._injectFinishButton();
-      controller._injectConsolePanel();
-    }
-  }, 100);
-});
+
+  const start = () => {
+    controller.init();
+
+    // Inject UI immediately; buttons remain disabled until session is ready.
+    controller._injectRunButtons();
+    controller._injectFinishButton();
+    controller._injectConsolePanel();
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
+})();

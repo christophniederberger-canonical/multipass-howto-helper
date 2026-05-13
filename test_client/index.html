@@ -1,29 +1,161 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Test Tutorial - Lighthouse Agent</title>
-  <link rel="stylesheet" href="/js/tutorial_controller.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lighthouse Agent - Browser Test Page</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #4b5563;
+      --border: #d1d5db;
+      --accent: #065f46;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top left, #ecfeff, var(--bg));
+    }
+
+    .page {
+      max-width: 980px;
+      margin: 2rem auto;
+      padding: 0 1rem 2rem;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #d1fae5, #e0f2fe);
+      border: 1px solid #a7f3d0;
+      border-radius: 14px;
+      padding: 1.1rem 1.2rem;
+      margin-bottom: 1.1rem;
+    }
+
+    .hero h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.35rem;
+    }
+
+    .hero p {
+      margin: 0;
+      color: #065f46;
+    }
+
+    .status {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      margin-bottom: 1rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .step h2 {
+      margin: 0 0 0.3rem;
+      font-size: 1.05rem;
+    }
+
+    .step p {
+      margin: 0 0 0.65rem;
+      color: var(--muted);
+    }
+
+    pre {
+      margin: 0;
+      padding: 0.8rem;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #0f172a;
+      color: #e5e7eb;
+      overflow-x: auto;
+    }
+  </style>
 </head>
 <body>
-  <h1>Test Tutorial</h1>
-  <p>Welcome to the Lighthouse Agent test page. This simulates a tutorial page with code blocks.</p>
-  
-  <h2>Step 1: List your home directory</h2>
-  <p>This command will list files in your home directory:</p>
-  <pre><code>ls -la ~</code></pre>
-  
-  <h2>Step 2: Check OS version</h2>
-  <p>This command will show your operating system information:</p>
-  <pre><code>cat /etc/os-release</code></pre>
-  
-  <h2>Step 3: Check current user</h2>
-  <p>This command will show the current user:</p>
-  <pre><code>whoami</code></pre>
-  
-  <h2>Step 4: Test a blocked command</h2>
-  <p>This command should be blocked by the command sanitizer:</p>
-  <pre><code>mount --bind /host /mnt</code></pre>
-  
-  <script src="/js/tutorial_controller.js"></script>
+  <main class="page">
+    <section class="hero">
+      <h1>Lighthouse Agent Browser Test</h1>
+      <p>This page simulates a tutorial and should show injected Run buttons, inline output, and the sidebar console.</p>
+    </section>
+
+    <div id="asset-status" class="status">Loading controller assets…</div>
+
+    <section class="step">
+      <h2>Step 1: Prepare packages</h2>
+      <p>This multiline block should be split into individual runnable lines.</p>
+      <pre><code>sudo apt update
+sudo apt install -y samba</code></pre>
+    </section>
+
+    <section class="step">
+      <h2>Step 2: Validate current user and path handling</h2>
+      <p>The placeholder username should be replaced with <strong>ubuntu</strong> before execution.</p>
+      <pre><code>whoami
+mkdir -p /home/&lt;username&gt;/sambashare</code></pre>
+    </section>
+
+    <section class="step">
+      <h2>Step 3: Show release information</h2>
+      <p>Single command block keeps one Run button.</p>
+      <pre><code>cat /etc/os-release</code></pre>
+    </section>
+
+    <section class="step">
+      <h2>Step 4: Blocked command check</h2>
+      <p>This should trigger COMMAND_BLOCKED in the UI.</p>
+      <pre><code>mount --bind /host /mnt</code></pre>
+    </section>
+  </main>
+
+  <script>
+    (function loadLighthouseAssets() {
+      const status = document.getElementById('asset-status');
+      const proxyOrigin = 'http://localhost:8080';
+      const cssUrl = `${proxyOrigin}/js/tutorial_controller.css`;
+      const jsUrl = `${proxyOrigin}/js/tutorial_controller.js`;
+
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = cssUrl;
+      link.onload = () => {
+        status.textContent = `Controller stylesheet loaded from ${cssUrl}`;
+        status.style.borderColor = '#6ee7b7';
+      };
+      link.onerror = () => {
+        status.textContent = `Could not load ${cssUrl}. Is the agent proxy running on :8080?`;
+        status.style.borderColor = '#fca5a5';
+      };
+      document.head.appendChild(link);
+
+      const script = document.createElement('script');
+      script.src = jsUrl;
+      script.onload = () => {
+        status.textContent = `Controller script loaded from ${jsUrl}`;
+        status.style.borderColor = '#6ee7b7';
+      };
+      script.onerror = () => {
+        status.textContent = `Could not load ${jsUrl}. Start Lighthouse Agent first.`;
+        status.style.borderColor = '#fca5a5';
+      };
+      document.body.appendChild(script);
+    })();
+  </script>
 </body>
 </html>

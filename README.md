@@ -96,7 +96,7 @@ node test.js --multipass # full Multipass integration test
 [12:54:39.030] INFO  VM Name: lighthouse-1158b6e7
 ```
 
-### 3. Test the Browser Controller (Day 4/5)
+### 3. Test the Browser Controller (Day 5/6)
 
 The agent includes a local tutorial proxy on port 8080 that fetches real Canonical tutorials and injects the JS controller automatically.
 
@@ -112,16 +112,19 @@ The proxy:
 
 **What you'll see:**
 - "▶ Run" buttons injected next to each code block
+- Multi-line snippets split into individual runnable lines
 - Permission dialog when clicking the first Run button
-- Live command output streamed back below each block
-- Green/red indicators for success/failure
+- Live command output streamed below each block and in the sidebar console
+- Keyboard input forwarding while console/output is focused
 
-**For the test client (without fetching from ubuntu.com):**
+**For the standalone test page (without fetching from ubuntu.com):**
 ```bash
 cd test_client
-npx serve .
+npx serve . -l 8081
 ```
-Open `http://localhost:8080/index.html` — same JS controller, no proxy needed.
+Open `http://localhost:8081/index.html`.
+
+The page will load controller assets from the agent proxy (`http://localhost:8080/js/...`) automatically, so keep the agent running while testing.
 
 #### Load JS on Any Page (Manual)
 
@@ -160,7 +163,7 @@ All tests pass. `multipass_wrapper_test.dart` uses mocked processes and does not
 | Day 3 | Session manager, origin validation, permission dialog | **Complete** |
 | Day 4 | JS tutorial controller (browser side) | **Complete** |
 | Day 5 | Local test proxy + end-to-end integration | **Complete** |
-| Day 6 | Status window, console panel | Not started |
+| Day 6 | Command sanitizer, console UX, interactive input | **In progress** |
 | Day 7 | Buffer, polish, demo prep | Not started |
 
 ---
@@ -175,7 +178,7 @@ All tests pass. `multipass_wrapper_test.dart` uses mocked processes and does not
 
 ## Branching Strategy
 
-Each day's work is on a dedicated branch: `main`, `day1`, `day2`, `day3`, `day4`.
+Each day's work is on a dedicated branch: `main`, `day1`, `day2`, `day3`, `day4`, `day5`, `day6`.
 
 ```bash
 git checkout day4

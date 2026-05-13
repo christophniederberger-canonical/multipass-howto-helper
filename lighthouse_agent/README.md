@@ -10,7 +10,7 @@ Flutter Desktop application for **Project Lighthouse** — a local bridge agent 
 - Executes commands inside VMs and streams output back to the browser in real time
 - Auto-cleans VMs after 30 minutes of browser inactivity
 
-## Day 5 Status ✅
+## Day 6 Status (In Progress) 🚧
 
 ### What's Working
 
@@ -33,12 +33,15 @@ Flutter Desktop application for **Project Lighthouse** — a local bridge agent 
 | **JS Tutorial Controller** | `js/tutorial_controller.js` | ✅ **Day 4: browser WebSocket client with UI injection** |
 | **Tutorial Controller CSS** | `js/tutorial_controller.css` | ✅ **Day 4: visual states for run buttons and output panels** |
 | **Tutorial proxy** | `lib/proxy/tutorial_proxy.dart` | ✅ **Day 5: HTTP proxy on :8080, injects JS, serves static files** |
+| **Command sanitizer** | `lib/agent/command_sanitizer.dart` | ✅ **Day 6: blocks unsafe command patterns while allowing tutorial commands** |
+| **Interactive console input** | `js/tutorial_controller.js` | ✅ **Day 6: focused inline/sidebar console forwards keyboard input to running command** |
+| **Per-line run controls** | `js/tutorial_controller.js` | ✅ **Day 6: multiline code snippets split into individual runnable lines** |
 
 ### Stubs Ready for Future Days
 
 | Component | File | Day |
 |---|---|---|
-| Status window | `lib/ui/status_window.dart` | Day 6 |
+| Status window | `lib/ui/status_window.dart` | Remaining Day 6 work |
 
 ## Running Locally
 
@@ -92,6 +95,19 @@ node test.js
 # Full multipass integration test (requires multipass installed)
 node test.js --multipass
 ```
+
+### Browser Test Page (Standalone)
+
+Use the standalone browser test page for UI checks (run buttons, inline output, sidebar console):
+
+```bash
+cd ../test_client
+npx serve . -l 8081
+```
+
+Open `http://localhost:8081/index.html`.
+
+Keep the Lighthouse Agent running (`flutter run`), because the test page loads controller assets from `http://localhost:8080/js/...`.
 
 ### Alternative: Browser Console Test
 
@@ -176,10 +192,10 @@ lib/
   platform/
     autostart_linux.dart               ← XDG autostart registration
   proxy/
-    tutorial_proxy.dart                ← Stub: local HTTP proxy on :8080 (Day 5)
+    tutorial_proxy.dart                ← Day 5: local HTTP proxy on :8080
 js/
-  tutorial_controller.js              ← Day 4: browser WebSocket client with UI injection
-  tutorial_controller.css             ← Day 4: visual states for run buttons and output panels
+  tutorial_controller.js              ← Day 4-6: browser WS client, per-line run controls, interactive input forwarding
+  tutorial_controller.css             ← Day 4-6: visual states and console/output readability
 test_client/
   test.js                              ← Node.js WebSocket test client
   index.html                           ← Browser test page for manual testing
