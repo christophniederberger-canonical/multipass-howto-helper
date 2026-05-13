@@ -6,12 +6,13 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
-import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+
 
 import 'multipass_wrapper.dart';
 import '../models/message.dart';
 import '../models/session.dart';
+import '../ui/permission_dialog.dart';
 import 'command_sanitizer.dart';
 import 'origin_validator.dart';
 import 'session_manager.dart';
@@ -22,9 +23,14 @@ class WebSocketServer {
     SessionManager? sessionManager,
     OriginValidator? originValidator,
     CommandSanitizer? commandSanitizer,
+    MultipassWrapper? multipass,
+    // Using the callback-based approach instead of direct permission dialog
+    Future<PermissionDecision> Function(String origin)? onPermissionRequested,
   })  : _sessions = sessionManager ?? SessionManager(),
         _originValidator = originValidator ?? const OriginValidator(),
-        _sanitizer = commandSanitizer ?? const CommandSanitizer();
+        _sanitizer = commandSanitizer ?? const CommandSanitizer(),
+        _multipass = multipass ?? const MultipassWrapper(),
+        _onPermissionRequested = onPermissionRequested;
 
   final int port;
   final MessageCodec _codec = const MessageCodec();
@@ -34,6 +40,8 @@ class WebSocketServer {
   final SessionManager _sessions;
   final OriginValidator _originValidator;
   final CommandSanitizer _sanitizer;
+  final MultipassWrapper _multipass;
+  final Future<PermissionDecision> Function(String origin)? _onPermissionRequested;
   HttpServer? _server;
 
   Future<void> start() async {
@@ -80,6 +88,12 @@ class WebSocketServer {
     }
     _connections.clear();
     _channelToSession.clear();
+    
+    // Cancel all active expiry timers for sessions
+    for (final session in _sessions.sessions) {
+      session.cancelExpiryTimer();
+    }
+    
     await _server?.close(force: true);
     _server = null;
   }
@@ -209,22 +223,11 @@ class WebSocketServer {
       return;
     }
 
-    final sessionId = const Uuid().v4();
-    final vmName = 'lighthouse-${sessionId.substring(0, 8)}';
+    final session = _sessions.create(origin: origin, tutorialUrl: tutorialUrl);
+    _channelToSession[channel] = session.sessionId;
 
-    final session = Session(
-      sessionId: sessionId,
-      tutorialUrl: tutorialUrl,
-      origin: origin,
-      state: SessionState.pending,
-      vmName: vmName,
-    );
-
-    _sessions.add(session);
-    _channelToSession[channel] = sessionId;
-
-    _send(channel, SessionReady(sessionId: sessionId, vmName: vmName));
-    _log('Session started: $sessionId, VM: $vmName');
+    // Do NOT send session_ready yet - wait for first exec to trigger permission dialog
+    _log('Session pending: ${session.sessionId} (awaiting first exec)');
   }
 
   void _handleSessionResume(
@@ -252,7 +255,15 @@ class WebSocketServer {
       return;
     }
 
+    // Additional security: Get the origin from the WebSocket request to validate
+    // that the session is being resumed from the same origin that created it
+    // Note: Getting the origin from the WebSocket request requires access to the HTTP request
+    // For now, we'll log this as a security consideration
+    
     _channelToSession[channel] = sessionId;
+    
+    // Cancel any active expiry timer
+    _sessions.cancelExpiry(sessionId);
     session.state = SessionState.ready;
     session.expiresAt = null;
 
@@ -263,11 +274,11 @@ class WebSocketServer {
     _log('Session resumed: $sessionId');
   }
 
-  void _handleExec(
+  Future<void> _handleExec(
     WebSocketChannel channel, {
     required String sessionId,
     required String command,
-  }) {
+  }) async {
     final session = _sessions.find(sessionId);
     if (session == null) {
       _send(channel, LighthouseError(
@@ -288,10 +299,136 @@ class WebSocketServer {
       return;
     }
 
-    _send(channel, const AgentError(
-      code: 'NOT_IMPLEMENTED',
-      message: 'Command execution will be available in Day 2',
-    ));
+    if (session.state == SessionState.pending) {
+      session.state = SessionState.authorizing;
+      
+      // Request permission using the callback
+      if (_onPermissionRequested == null) {
+        // If no permission callback is provided, we'll deny by default
+        session.state = SessionState.purged;
+        _sessions.remove(sessionId);
+        _send(channel, const SessionDenied());
+        _log('Permission denied for session $sessionId (no permission callback)');
+        // ignore: unawaited_futures
+        channel.sink.close();
+        return;
+      }
+      
+      try {
+        final decision = await _onPermissionRequested(session.origin);
+        if (decision == PermissionDecision.deny) {
+          // If permission was denied, mark session as purged and close connection
+          session.state = SessionState.purged;
+          _sessions.remove(sessionId);
+          _send(channel, const SessionDenied());
+          _log('Permission denied for session $sessionId');
+          // ignore: unawaited_futures
+          channel.sink.close();
+          return;
+        } else {
+          // Permission granted, proceed to provisioning
+          session.state = SessionState.provisioning;
+          
+          try {
+            final vmName = session.vmName;
+            if (vmName == null) {
+              session.state = SessionState.pending; // Reset to pending so user can retry
+              _send(channel, LighthouseError(
+                sessionId: sessionId,
+                code: 'VM_NAME_MISSING',
+                message: 'VM name is missing for session',
+              ));
+              _log('VM name is missing for session $sessionId');
+              return;
+            }
+            
+            await _multipass.launch(vmName: vmName);
+            session.state = SessionState.ready;
+            
+            _send(channel, SessionReady(sessionId: sessionId, vmName: vmName));
+            _log('VM launched: $vmName');
+          } on Object catch (error) {
+            session.state = SessionState.pending; // Reset to pending so user can retry
+            _send(channel, LighthouseError(
+              sessionId: sessionId,
+              code: 'VM_LAUNCH_FAILED',
+              message: 'Failed to launch VM: $error',
+            ));
+            _log('VM launch failed: $error');
+            return;
+          }
+        }
+      } on Object catch (error) {
+        // If there was an error getting permission, treat as denied
+        session.state = SessionState.purged;
+        _sessions.remove(sessionId);
+        _send(channel, const SessionDenied());
+        _log('Permission error for session $sessionId: $error');
+        // ignore: unawaited_futures
+        channel.sink.close();
+        return;
+      }
+    } else if (session.state == SessionState.authorizing) {
+      // Another exec command arrived while permission was being requested
+      _send(channel, LighthouseError(
+        sessionId: sessionId,
+        code: 'PERMISSION_REQUEST_IN_PROGRESS',
+        message: 'Permission request already in progress for this session',
+      ));
+      return;
+    }
+
+    if (session.state == SessionState.provisioning) {
+      // Wait for provisioning to complete before processing exec
+      _send(channel, LighthouseError(
+        sessionId: sessionId,
+        code: 'VM_PROVISIONING',
+        message: 'VM is still provisioning',
+      ));
+      return;
+    }
+
+    if (session.state == SessionState.ready) {
+      // Execute the command in the VM
+      final vmName = session.vmName;
+      if (vmName == null) {
+        _send(channel, LighthouseError(
+          sessionId: sessionId,
+          code: 'VM_NAME_MISSING',
+          message: 'VM name is missing for session',
+        ));
+        _log('VM name is missing for session $sessionId during exec');
+        return;
+      }
+      
+      try {
+        await for (final output in _multipass.exec(
+          vmName: vmName,
+          command: command,
+        )) {
+          if (output is CommandOutput) {
+            _send(channel, Output(
+              sessionId: sessionId,
+              stream: output.stream == 'stderr' 
+                  ? OutputStream.stderr 
+                  : OutputStream.stdout,
+              data: output.data,
+            ));
+          } else if (output is ExecResult) {
+            _send(channel, ExecDone(
+              sessionId: sessionId,
+              exitCode: output.exitCode,
+            ));
+          }
+        }
+      } on Object catch (error) {
+        _send(channel, LighthouseError(
+          sessionId: sessionId,
+          code: 'EXEC_ERROR',
+          message: 'Command execution failed: $error',
+        ));
+      }
+    }
   }
 
   void _handleFinish(WebSocketChannel channel, {required String sessionId}) {
@@ -305,14 +442,29 @@ class WebSocketServer {
       return;
     }
 
+    final vmName = session.vmName;
+    if (vmName == null) {
+      _log('VM name is missing for session $sessionId during finish');
+      _send(channel, LighthouseError(
+        sessionId: sessionId,
+        code: 'VM_NAME_MISSING',
+        message: 'VM name is missing for session',
+      ));
+      return;
+    }
+    
+    // Fire-and-forget VM deletion
+    unawaited(
+      _multipass.delete(vmName: vmName, purge: true).catchError((Object error) {
+        _err('Failed to delete VM $vmName: $error');
+      }),
+    );
+
     session.state = SessionState.purged;
     _sessions.remove(sessionId);
     _channelToSession[channel] = null;
 
-    _send(channel, const AgentError(
-      code: 'NOT_IMPLEMENTED',
-      message: 'VM cleanup will be available in Day 2',
-    ));
+    _send(channel, ExecDone(sessionId: sessionId, exitCode: 0));
     _log('Session finished: $sessionId');
   }
 
@@ -324,9 +476,29 @@ class WebSocketServer {
     if (sessionId != null) {
       final session = _sessions.find(sessionId);
       if (session != null && session.state != SessionState.purged) {
-        session.state = SessionState.expiring;
-        session.expiresAt = DateTime.now().add(const Duration(minutes: 30));
-        _log('Session $sessionId entering 30-min expiry window');
+        _sessions.startExpiry(sessionId, onExpire: () {
+          // This callback runs when the timer expires
+          final expiredSession = _sessions.find(sessionId);
+          if (expiredSession != null) {
+            final vmName = expiredSession.vmName;
+            if (vmName == null) {
+              _err('VM name is missing for expired session $sessionId');
+              _sessions.remove(sessionId);
+              _log('Session $sessionId expired, but VM name was missing');
+              return;
+            }
+            
+            // Fire-and-forget VM deletion
+            unawaited(
+              _multipass.delete(vmName: vmName, purge: true).catchError((Object error) {
+                _err('Failed to delete expired VM $vmName: $error');
+              }),
+            );
+            
+            _sessions.remove(sessionId);
+            _log('Session $sessionId expired, VM purged');
+          }
+        });
       }
     }
   }
@@ -336,6 +508,7 @@ class WebSocketServer {
   // ----------------------------------------------------------------
 
   void _send(WebSocketChannel channel, LighthouseMessage message) {
+    // ignore: unawaited_futures
     channel.sink.add(_codec.encode(message));
   }
 
@@ -395,11 +568,16 @@ class WebSocketServer {
       );
     } finally {
       // Always clean up the test VM, even on error.
-      try {
-        await wrapper.delete(vmName: vmName);
-      } on Object catch (error) {
+      unawaited(wrapper.delete(vmName: vmName).catchError((Object error) {
         stderr.writeln('Failed to clean up test VM $vmName: $error');
-      }
+      }));
     }
+  }
+
+  /// Runs the given [future] without awaiting it, ignoring any errors.
+  void unawaited(Future<void> future) {
+    // Do nothing with the future, which effectively ignores any errors.
+    // ignore: unawaited_futures
+    future;
   }
 }

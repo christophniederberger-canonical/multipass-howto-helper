@@ -10,31 +10,31 @@ Flutter Desktop application for **Project Lighthouse** — a local bridge agent 
 - Executes commands inside VMs and streams output back to the browser in real time
 - Auto-cleans VMs after 30 minutes of browser inactivity
 
-## Day 2 Status ✅
+## Day 3 Status ✅
 
 ### What's Working
 
 | Component | File | Status |
 |---|---|---|
-| WebSocket server skeleton | `lib/agent/websocket_server.dart` | ✅ Accepts connections, parses JSON messages, replies with `NOT_IMPLEMENTED` |
+| WebSocket server skeleton | `lib/agent/websocket_server.dart` | ✅ Accepts connections, parses JSON messages, handles full session lifecycle |
 | Message codec (JSON) | `lib/models/message.dart` | ✅ All protocol messages defined with `toJson`/`fromJson` |
-| Session model | `lib/models/session.dart` | ✅ Enum + data model ready |
+| Session model | `lib/models/session.dart` | ✅ Enum + data model with expiry timer |
+| Session manager | `lib/agent/session_manager.dart` | ✅ **Day 3: full state machine, timer management, VM lifecycle** |
 | Linux autostart registration | `lib/platform/autostart_linux.dart` | ✅ Writes `~/.config/autostart/lighthouse.desktop` on first launch |
 | App startup sequence | `lib/main.dart` | ✅ Tray init → autostart check → cert check → multipass check → WSS server start |
 | Release vs debug mode | `lib/agent/websocket_server.dart` | ✅ Debug: `ws://` / Release: `wss://` (cert loading skeleton) |
 | **Multipass wrapper** | `lib/agent/multipass_wrapper.dart` | ✅ **Day 2: launch, exec streaming, delete --purge** |
 | **Multipass detection** | `lib/main.dart` | ✅ **Day 2: checks PATH at startup, tray error state if missing** |
 | **Tray tooltip** | `lib/ui/tray_icon.dart` | ✅ **Day 2: reflects multipass availability** |
-| **WS test hook** | `lib/agent/websocket_server.dart` | ✅ **Day 2: `__test_multipass__` for manual E2E validation** |
+| **Origin validator** | `lib/agent/origin_validator.dart` | ✅ **Day 3: allowlist check (ubuntu.com/canonical.com + localhost in debug)** |
+| **Permission dialog** | `lib/ui/permission_dialog.dart` | ✅ **Day 3: native Allow/Deny prompt on first command** |
+| **Session lifecycle** | `lib/agent/websocket_server.dart` | ✅ **Day 3: pending → authorizing → provisioning → ready → expiring → purged** |
+| **30-min expiry timer** | `lib/agent/websocket_server.dart` | ✅ **Day 3: auto-purge VMs after 30 min browser inactivity** |
 
 ### Stubs Ready for Future Days
 
 | Component | File | Day |
 |---|---|---|
-| Session manager | `lib/agent/session_manager.dart` | Day 3 |
-| Origin validator | `lib/agent/origin_validator.dart` | Day 3 |
-| Command sanitizer | `lib/agent/command_sanitizer.dart` | Day 6 |
-| Permission dialog | `lib/ui/permission_dialog.dart` | Day 3 |
 | Status window | `lib/ui/status_window.dart` | Day 6 |
 | Tutorial proxy | `lib/proxy/tutorial_proxy.dart` | Day 5 |
 
@@ -159,22 +159,22 @@ If building on a **non-snap Flutter installation** (recommended for host develop
 lib/
   main.dart                          ← Entry point, startup sequence
   agent/
-    websocket_server.dart              ← WSS listener (ws debug / wss release)
-    session_manager.dart               ← Stub: session state machine
-    origin_validator.dart              ← Stub: origin allowlist check
-    command_sanitizer.dart             ← Stub: command blocklist
-    multipass_wrapper.dart             ← Stub: multipass CLI wrappers
+    websocket_server.dart              ← WSS listener (ws debug / wss release), full session lifecycle
+    session_manager.dart               ← Day 3: session state machine, timer management
+    origin_validator.dart              ← Day 3: origin allowlist check (ubuntu.com/canonical.com)
+    command_sanitizer.dart             ← Day 3: command validation with blocklist of dangerous commands
+    multipass_wrapper.dart             ← Day 2: multipass CLI wrappers (launch, exec, delete)
   ui/
     tray_icon.dart                     ← Linux-safe fallback (placeholder)
-    status_window.dart                 ← Stub: active sessions window
-    permission_dialog.dart               ← Stub: Allow/Deny dialog
+    status_window.dart                 ← Stub: active sessions window (Day 6)
+    permission_dialog.dart               ← Day 3: native Allow/Deny dialog
   models/
     message.dart                       ← JSON message codec (sealed classes)
-    session.dart                       ← Session enum + model
+    session.dart                       ← Session enum + model with expiry timer
   platform/
     autostart_linux.dart               ← XDG autostart registration
   proxy/
-    tutorial_proxy.dart                ← Stub: local HTTP proxy on :8080
+    tutorial_proxy.dart                ← Stub: local HTTP proxy on :8080 (Day 5)
 assets/
   icon_normal.png                      ← Placeholder tray icon (green)
   icon_error.png                       ← Placeholder tray icon (red)

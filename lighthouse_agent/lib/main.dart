@@ -8,8 +8,12 @@ import 'package:window_manager/window_manager.dart';
 import 'agent/multipass_wrapper.dart';
 import 'agent/websocket_server.dart';
 import 'platform/autostart_linux.dart';
+import 'ui/permission_dialog.dart';
 import 'ui/status_window.dart';
 import 'ui/tray_icon.dart';
+
+// Global key to access navigator context for permission dialog
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 late final LighthouseTray _tray;
 late final WebSocketServer _server;
@@ -38,13 +42,23 @@ Future<void> main() async {
     await AutostartRegistration(appDataDir: appDataDir).registerIfNeeded();
   }
 
-  _server = WebSocketServer();
+  // Create instances
+  const multipass = MultipassWrapper();
+  const permissionDialog = PermissionDialog();
+
+  _server = WebSocketServer(
+    multipass: multipass,
+    onPermissionRequested: (origin) => permissionDialog.requestTutorialPermission(
+      context: navigatorKey.currentContext!,
+      origin: origin,
+    ),
+  );
   if (!kDebugMode && !await _server.hasValidCertificates()) {
     stderr.writeln('TLS certificates are missing. TODO: show mkcert setup UI.');
   }
 
   // Check Multipass availability before starting the server.
-  final multipassAvailable = await const MultipassWrapper().isAvailable();
+  final multipassAvailable = await multipass.isAvailable();
   if (!multipassAvailable) {
     stderr.writeln('Multipass not found in PATH. Please install Multipass.');
     await _tray.setTrayState(TrayState.error);
@@ -69,6 +83,7 @@ class LighthouseApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Lighthouse Agent',
       theme: ThemeData(
