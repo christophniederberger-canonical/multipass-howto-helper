@@ -48,6 +48,7 @@ class WebSocketServer {
   final CommandSanitizer _sanitizer;
   final MultipassWrapper _multipass;
   final Future<PermissionDecision> Function(String origin, String sessionId)? _onPermissionRequested;
+  final Map<String, InteractiveExecSession> _activeExecBySession = <String, InteractiveExecSession>{};
   HttpServer? _server;
 
   Future<void> start() async {
@@ -97,6 +98,10 @@ class WebSocketServer {
     _channelToSession.clear();
     _heartbeatTimers.clear();
     _missedHeartbeats.clear();
+    for (final exec in _activeExecBySession.values) {
+      exec.terminate();
+    }
+    _activeExecBySession.clear();
     
     // Cancel all active expiry timers for sessions
     for (final session in _sessions.sessions) {
@@ -213,6 +218,8 @@ class WebSocketServer {
           return;
         }
         _handleExec(channel, sessionId: sessionId, command: command);
+      case ExecInput(:final sessionId, :final data):
+        _handleExecInput(channel, sessionId: sessionId, data: data);
       case Finish(:final sessionId):
         _handleFinish(channel, sessionId: sessionId);
       default:
@@ -444,6 +451,15 @@ class WebSocketServer {
     }
 
     if (session.state == SessionState.ready) {
+      if (_activeExecBySession.containsKey(sessionId)) {
+        _send(channel, LighthouseError(
+          sessionId: sessionId,
+          code: 'EXEC_IN_PROGRESS',
+          message: 'A command is already running for this session',
+        ));
+        return;
+      }
+
       // Execute the command in the VM
       final vmName = session.vmName;
       if (vmName == null) {
@@ -457,32 +473,60 @@ class WebSocketServer {
       }
       
       try {
-        await for (final output in _multipass.exec(
+        final interactive = await _multipass.startInteractiveExec(
           vmName: vmName,
           command: command,
-        )) {
-          if (output is CommandOutput) {
-            _send(channel, Output(
-              sessionId: sessionId,
-              stream: output.stream == 'stderr' 
-                  ? OutputStream.stderr 
-                  : OutputStream.stdout,
-              data: output.data,
-            ));
-          } else if (output is ExecResult) {
-            _send(channel, ExecDone(
-              sessionId: sessionId,
-              exitCode: output.exitCode,
-            ));
-          }
+        );
+        _activeExecBySession[sessionId] = interactive;
+
+        await for (final output in interactive.output) {
+          _send(channel, Output(
+            sessionId: sessionId,
+            stream: output.stream == 'stderr' ? OutputStream.stderr : OutputStream.stdout,
+            data: output.data,
+          ));
         }
+
+        final exitCode = await interactive.exitCode;
+        _send(channel, ExecDone(
+          sessionId: sessionId,
+          exitCode: exitCode,
+        ));
       } on Object catch (error) {
         _send(channel, LighthouseError(
           sessionId: sessionId,
           code: 'EXEC_ERROR',
           message: 'Command execution failed: $error',
         ));
+      } finally {
+        _activeExecBySession.remove(sessionId);
       }
+    }
+  }
+
+  void _handleExecInput(
+    WebSocketChannel channel, {
+    required String sessionId,
+    required String data,
+  }) {
+    final active = _activeExecBySession[sessionId];
+    if (active == null) {
+      _send(channel, LighthouseError(
+        sessionId: sessionId,
+        code: 'NO_ACTIVE_EXEC',
+        message: 'No active command is currently running',
+      ));
+      return;
+    }
+
+    try {
+      active.sendInput(data);
+    } on Object catch (error) {
+      _send(channel, LighthouseError(
+        sessionId: sessionId,
+        code: 'EXEC_INPUT_FAILED',
+        message: 'Failed to send input to running command: $error',
+      ));
     }
   }
 
@@ -509,6 +553,9 @@ class WebSocketServer {
     }
     
     // Fire-and-forget VM deletion
+    final activeExec = _activeExecBySession.remove(sessionId);
+    activeExec?.terminate();
+
     unawaited(
       _multipass.delete(vmName: vmName, purge: true).catchError((Object error) {
         _err('Failed to delete VM $vmName: $error');
@@ -530,6 +577,9 @@ class WebSocketServer {
     _log('WebSocket client disconnected (session: $sessionId)');
 
     if (sessionId != null) {
+      final activeExec = _activeExecBySession.remove(sessionId);
+      activeExec?.terminate();
+
       final session = _sessions.find(sessionId);
       if (session != null && session.state != SessionState.purged) {
         // Reconnection window: 60 seconds to resume

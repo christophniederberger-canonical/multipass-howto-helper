@@ -26,6 +26,23 @@
   margin: 1rem 0;
 }
 
+.lh-line-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lh-line-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.lh-line-item pre {
+  margin: 0;
+  flex: 1;
+}
+
 /* Run Button */
 .lh-run-btn {
   font-size: 0.8rem;
@@ -124,6 +141,27 @@
   transition: max-height 0.2s ease;
 }
 
+.lh-inline-input-badge {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: #334155;
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.lh-output-section.lh-input-capture-active {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.25);
+}
+
+.lh-output-section.lh-input-capture-active .lh-inline-input-badge {
+  background: #14532d;
+  color: #86efac;
+}
+
 .lh-hidden {
   max-height: 0;
   overflow: hidden;
@@ -203,6 +241,20 @@
 #lh-vm-name {
   font-size: 0.9rem;
   color: #94a3b8;
+}
+
+#lh-console-input-badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #334155;
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+#lh-console-input-badge.lh-capture-active {
+  background: #14532d;
+  color: #86efac;
 }
 
 #lh-console-header button {

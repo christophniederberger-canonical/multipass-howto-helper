@@ -15,6 +15,30 @@ class ExecResult {
   final int exitCode;
 }
 
+class InteractiveExecSession {
+  InteractiveExecSession({
+    required Process process,
+    required this.output,
+    required this.exitCode,
+  }) : _process = process;
+
+  final Process _process;
+  final Stream<CommandOutput> output;
+  final Future<int> exitCode;
+
+  void sendInput(String data) {
+    _process.stdin.write(data);
+  }
+
+  Future<void> closeInput() {
+    return _process.stdin.close();
+  }
+
+  void terminate() {
+    _process.kill();
+  }
+}
+
 /// Wraps the Multipass CLI to manage VM lifecycle.
 ///
 /// All operations are async and communicate via `Process.run` / `Process.start`.
@@ -128,6 +152,25 @@ class MultipassWrapper {
     }
   }
 
+  /// Starts an interactive command execution and returns handles for output,
+  /// exit code, and stdin forwarding.
+  Future<InteractiveExecSession> startInteractiveExec({
+    required String vmName,
+    required String command,
+  }) async {
+    final process = await processStart(
+      'multipass',
+      <String>['exec', vmName, '--', 'bash', '-c', command],
+    );
+
+    final output = _mergeChunkStreams(process.stdout, process.stderr);
+    return InteractiveExecSession(
+      process: process,
+      output: output,
+      exitCode: process.exitCode,
+    );
+  }
+
   /// Merges [stdout] and [stderr] byte streams into [CommandOutput] events.
   Stream<CommandOutput> _mergeStreams(
     Stream<List<int>> stdout,
@@ -169,6 +212,50 @@ class MultipassWrapper {
         .transform(const LineSplitter())
         .listen(
           (line) => controller.add(CommandOutput(stream: 'stderr', data: line)),
+          onDone: onDone,
+          onError: onError,
+        );
+
+    return controller.stream;
+  }
+
+  Stream<CommandOutput> _mergeChunkStreams(
+    Stream<List<int>> stdout,
+    Stream<List<int>> stderr,
+  ) {
+    final controller = StreamController<CommandOutput>();
+    var pending = 2;
+    StreamSubscription<void>? stdoutSub;
+    StreamSubscription<void>? stderrSub;
+
+    void onDone() {
+      pending--;
+      if (pending == 0 && !controller.isClosed) {
+        controller.close();
+      }
+    }
+
+    void onError(Object error, StackTrace stackTrace) {
+      stdoutSub?.cancel();
+      stderrSub?.cancel();
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+        controller.close();
+      }
+    }
+
+    stdoutSub = stdout
+        .transform(utf8.decoder)
+        .listen(
+          (chunk) => controller.add(CommandOutput(stream: 'stdout', data: chunk)),
+          onDone: onDone,
+          onError: onError,
+        );
+
+    stderrSub = stderr
+        .transform(utf8.decoder)
+        .listen(
+          (chunk) => controller.add(CommandOutput(stream: 'stderr', data: chunk)),
           onDone: onDone,
           onError: onError,
         );

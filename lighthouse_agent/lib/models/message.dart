@@ -54,6 +54,23 @@ final class Exec extends LighthouseMessage {
   };
 }
 
+final class ExecInput extends LighthouseMessage {
+  const ExecInput({required this.sessionId, required this.data});
+
+  final String sessionId;
+  final String data;
+
+  @override
+  String get type => 'exec_input';
+
+  @override
+  Map<String, Object?> toJson() => {
+    'type': type,
+    'session_id': sessionId,
+    'data': data,
+  };
+}
+
 final class Finish extends LighthouseMessage {
   const Finish({required this.sessionId});
 
@@ -223,6 +240,10 @@ final class MessageCodec {
       'exec' => Exec(
         sessionId: _string(json, 'session_id'),
         command: _string(json, 'command'),
+      ),
+      'exec_input' => ExecInput(
+        sessionId: _string(json, 'session_id'),
+        data: _string(json, 'data'),
       ),
       'finish' => Finish(sessionId: _string(json, 'session_id')),
       'session_ready' => SessionReady(

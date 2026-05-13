@@ -10,6 +10,7 @@ class TutorialController {
     this.timeoutId = null;
     this.connectionEstablished = false;
     this.isResuming = false; // Track if we're attempting to resume a session
+    this.activeExecBlock = null;
   }
 
   init() {
@@ -83,6 +84,8 @@ class TutorialController {
         if (finishBtn) {
           finishBtn.textContent = 'Session ended.';
         }
+        this.activeExecBlock = null;
+        this.commandQueue = [];
       }
     };
   }
@@ -135,12 +138,16 @@ class TutorialController {
           const block = this._getBlockBySessionId(message.session_id);
           if (block) {
             this._setBlockState(block, 'blocked');
+            this.commandQueue.shift();
+            this.activeExecBlock = this.commandQueue.length > 0 ? this.commandQueue[0] : null;
           }
         } else if (message.session_id && message.code) {
           // Find the block associated with this session and mark as error
           const block = this._getBlockBySessionId(message.session_id);
           if (block) {
             this._setBlockState(block, 'failure');
+            this.commandQueue.shift();
+            this.activeExecBlock = this.commandQueue.length > 0 ? this.commandQueue[0] : null;
           }
         } else if (!message.session_id && message.code) {
           // Agent-level error
@@ -164,6 +171,7 @@ class TutorialController {
         if (this.commandQueue.length > 0) {
           const block = this.commandQueue.shift();
           this._setBlockState(block, message.exit_code === 0 ? 'success' : 'failure');
+          this.activeExecBlock = this.commandQueue.length > 0 ? this.commandQueue[0] : null;
         }
         break;
 
@@ -225,55 +233,57 @@ class TutorialController {
         return; // Skip empty blocks
       }
 
-      // Create wrapper div
+      const preElement = codeBlock.parentElement;
       const wrapper = document.createElement('div');
       wrapper.className = 'lh-block-wrapper lh-state-idle';
       wrapper.dataset.commandIndex = index;
-
-      // Wrap the existing pre element
-      const preElement = codeBlock.parentElement;
       preElement.parentNode.insertBefore(wrapper, preElement);
-      wrapper.appendChild(preElement);
 
-      // Create run controls (one button per command line for multi-line blocks).
-      const runControls = document.createElement('div');
-      runControls.className = 'lh-run-controls';
+      const lineItems = document.createElement('div');
+      lineItems.className = 'lh-line-items';
+      const sourceCodeClass = codeBlock.className;
 
-      if (rawLines.length === 1) {
+      rawLines.forEach((line, lineIndex) => {
+        const lineItem = document.createElement('div');
+        lineItem.className = 'lh-line-item';
+
+        const linePre = document.createElement('pre');
+        const lineCode = document.createElement('code');
+        lineCode.className = sourceCodeClass;
+        lineCode.textContent = line;
+        linePre.appendChild(lineCode);
+
         const runButton = document.createElement('button');
-        runButton.className = 'lh-run-btn';
-        runButton.textContent = '▶ Run';
+        runButton.className = rawLines.length > 1 ? 'lh-run-btn lh-run-btn-small' : 'lh-run-btn';
+        runButton.textContent = rawLines.length > 1 ? `▶ L${lineIndex + 1}` : '▶ Run';
         runButton.disabled = !this.sessionId;
-        runButton.title = rawLines[0];
+        runButton.title = line;
         runButton.addEventListener('click', () => {
-          this._handleRunButtonClick(wrapper, rawLines[0]);
+          this._handleRunButtonClick(wrapper, line);
         });
-        runControls.appendChild(runButton);
-      } else {
-        rawLines.forEach((line, lineIndex) => {
-          const runButton = document.createElement('button');
-          runButton.className = 'lh-run-btn lh-run-btn-small';
-          runButton.textContent = `▶ L${lineIndex + 1}`;
-          runButton.disabled = !this.sessionId;
-          runButton.title = line;
-          runButton.addEventListener('click', () => {
-            this._handleRunButtonClick(wrapper, line);
-          });
-          runControls.appendChild(runButton);
-        });
-      }
+
+        lineItem.appendChild(linePre);
+        lineItem.appendChild(runButton);
+        lineItems.appendChild(lineItem);
+      });
+
+      preElement.remove();
 
       // Create output section (initially hidden)
       const outputSection = document.createElement('div');
       outputSection.className = 'lh-output-section lh-hidden';
-      outputSection.innerHTML = '<div class="lh-output-command"></div><pre class="lh-output-pre"></pre>';
+      outputSection.innerHTML = '<div class="lh-inline-input-badge">Keyboard input off</div><div class="lh-output-command"></div><pre class="lh-output-pre"></pre>';
+      outputSection.tabIndex = 0;
+      outputSection.addEventListener('keydown', (event) => this._handleInteractiveKey(event, wrapper));
+      outputSection.addEventListener('focus', () => this._setInlineInputCaptureState(wrapper, true));
+      outputSection.addEventListener('blur', () => this._setInlineInputCaptureState(wrapper, false));
 
       // Create status indicator
       const statusIndicator = document.createElement('span');
       statusIndicator.className = 'lh-status-indicator';
 
       // Append elements to wrapper
-      wrapper.appendChild(runControls);
+      wrapper.appendChild(lineItems);
       wrapper.appendChild(outputSection);
       wrapper.appendChild(statusIndicator);
     });
@@ -287,31 +297,91 @@ class TutorialController {
     // Set block state to running
     this._setBlockState(block, 'running');
     
+    const normalizedCommand = command.replaceAll('<username>', 'ubuntu');
+
     const outputCommand = block.querySelector('.lh-output-command');
     if (outputCommand) {
       if (outputCommand.textContent && outputCommand.textContent.trim().length > 0) {
-        outputCommand.textContent += `\n$ ${command}`;
+        outputCommand.textContent += `\n$ ${normalizedCommand}`;
       } else {
-        outputCommand.textContent = `$ ${command}`;
+        outputCommand.textContent = `$ ${normalizedCommand}`;
       }
     }
 
     const outputSection = block.querySelector('.lh-output-section');
     if (outputSection) {
       outputSection.classList.remove('lh-hidden');
+      outputSection.focus();
     }
 
-    this._appendToConsoleCommand(command);
+    this._appendToConsoleCommand(normalizedCommand);
+    this.activeExecBlock = block;
 
     // Send exec command
     this._sendMessage({
       type: 'exec',
       session_id: this.sessionId,
-      command: command
+      command: normalizedCommand
     });
 
     // Add block to command queue
     this.commandQueue.push(block);
+  }
+
+  _handleInteractiveKey(event, block) {
+    const targetBlock = block || this.activeExecBlock;
+    if (!targetBlock || !targetBlock.classList.contains('lh-state-running')) {
+      return;
+    }
+
+    if (!this.sessionId) {
+      return;
+    }
+
+    let data = null;
+    if (event.key === 'Enter') {
+      data = '\n';
+    } else if (event.key === 'Tab') {
+      data = '\t';
+    } else if (event.key === 'Backspace') {
+      data = '\b';
+    } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      data = event.key;
+    }
+
+    if (data == null) {
+      return;
+    }
+
+    event.preventDefault();
+    this._sendMessage({
+      type: 'exec_input',
+      session_id: this.sessionId,
+      data,
+    });
+
+    this._appendToOutput(targetBlock, data);
+    this._appendToConsoleOutput(data);
+  }
+
+  _setInlineInputCaptureState(block, active) {
+    const outputSection = block.querySelector('.lh-output-section');
+    if (!outputSection) {
+      return;
+    }
+
+    const badge = outputSection.querySelector('.lh-inline-input-badge');
+    if (!badge) {
+      return;
+    }
+
+    if (active) {
+      badge.textContent = 'Keyboard input ON';
+      outputSection.classList.add('lh-input-capture-active');
+    } else {
+      badge.textContent = 'Keyboard input off';
+      outputSection.classList.remove('lh-input-capture-active');
+    }
   }
 
   _setBlockState(block, state) {
@@ -467,6 +537,8 @@ class TutorialController {
     blocks.forEach(block => {
       this._setBlockState(block, 'denied');
     });
+    this.commandQueue = [];
+    this.activeExecBlock = null;
 
     // Remove finish bar if present
     const finishBar = document.getElementById('lh-finish-bar');
@@ -548,6 +620,7 @@ class TutorialController {
       <div id="lh-console-header">
         <span>Lighthouse Console</span>
         <span id="lh-vm-name">${this.vmName || ''}</span>
+        <span id="lh-console-input-badge">Keyboard input off</span>
         <button id="lh-console-finish">⏹ Finish Tutorial</button>
         <button id="lh-console-close">✕</button>
       </div>
@@ -590,6 +663,29 @@ class TutorialController {
     consoleToggle.addEventListener('click', () => {
       consolePanel.classList.toggle('lh-console-hidden');
     });
+
+    const consoleLog = document.getElementById('lh-console-log');
+    if (consoleLog) {
+      consoleLog.tabIndex = 0;
+      consoleLog.addEventListener('keydown', (event) => this._handleInteractiveKey(event, null));
+      consoleLog.addEventListener('focus', () => this._setSidebarInputCaptureState(true));
+      consoleLog.addEventListener('blur', () => this._setSidebarInputCaptureState(false));
+    }
+  }
+
+  _setSidebarInputCaptureState(active) {
+    const badge = document.getElementById('lh-console-input-badge');
+    if (!badge) {
+      return;
+    }
+
+    if (active) {
+      badge.textContent = 'Keyboard input ON';
+      badge.classList.add('lh-capture-active');
+    } else {
+      badge.textContent = 'Keyboard input off';
+      badge.classList.remove('lh-capture-active');
+    }
   }
 }
 
